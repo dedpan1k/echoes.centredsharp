@@ -10,15 +10,36 @@ using static SDL3.SDL;
 
 namespace CentrED;
 
+/// <summary>
+/// Hosts the main editor game loop, graphics device, and top-level map and UI systems.
+/// </summary>
 public class CentrEDGame : Game
 {
+    /// <summary>
+    /// Provides access to the graphics device configuration for the running editor instance.
+    /// </summary>
     public readonly GraphicsDeviceManager _gdm;
 
     private Keymap _keymap;
+
+    /// <summary>
+    /// Gets the map subsystem used for rendering and editing world content.
+    /// </summary>
     public MapManager MapManager;
+
+    /// <summary>
+    /// Gets the UI subsystem used for the main window and auxiliary editor windows.
+    /// </summary>
     public UIManager UIManager;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the editor is in the process of shutting down.
+    /// </summary>
     public bool Closing { get; set; }
     
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CentrEDGame"/> class.
+    /// </summary>
     public CentrEDGame()
     {
         _gdm = new GraphicsDeviceManager(this)
@@ -51,7 +72,8 @@ public class CentrEDGame : Game
 
         Log.Start(LogTypes.All);
         LangManager.Load();
-        //UIManager have to exist before MapManager, since Tools can be dependent on Windows
+        // Create the UI manager before the map manager because editor tools may
+        // depend on UI windows being available during map initialization.
         _keymap =  new Keymap();
         UIManager = new UIManager(_gdm.GraphicsDevice, Window, _keymap);
         MapManager = new MapManager(_gdm.GraphicsDevice, Window, _keymap);
@@ -93,7 +115,8 @@ public class CentrEDGame : Game
     protected override bool BeginDraw()
     {
         Metrics.Start("BeginDraw");
-        //We can rely on UIManager, since it draws UI over the main window as well as handles to all the extra windows
+        // Use the maximum UI-managed window size so the back buffer can cover
+        // the main viewport and any auxiliary editor windows.
         var maxWindowSize = UIManager.MaxWindowSize();
         var width = (int)maxWindowSize.X;
         var height = (int)maxWindowSize.Y;
@@ -147,7 +170,8 @@ public class CentrEDGame : Game
 
     protected override void EndDraw()
     {
-        //Restore main window viewport and scissor rectangle for next tick Update()
+        // Restore the main window viewport and scissor rectangle so the next
+        // frame starts from a known graphics state.
         var gameWindowRect = Window.ClientBounds;
         GraphicsDevice.Viewport = new Viewport(0, 0, gameWindowRect.Width, gameWindowRect.Height);
         GraphicsDevice.ScissorRectangle = new Rectangle(0, 0, gameWindowRect.Width, gameWindowRect.Height);
