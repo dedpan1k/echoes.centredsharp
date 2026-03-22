@@ -1,4 +1,5 @@
 ﻿using CentrED.Lights;
+using CentrED.UI;
 using Hexa.NET.ImGui;
 using Microsoft.Xna.Framework.Input;
 using static CentrED.Application;
@@ -14,6 +15,8 @@ namespace CentrED.UI.Windows;
 public class OptionsWindow : Window
 {
     private Keymap _keymap;
+    private UIThemeModeFilter _themeModeFilter;
+    private bool _themeModeFilterInitialized;
 
     /// <summary>
     /// Receives the shared keymap service so keybinding changes can be displayed using the same
@@ -51,6 +54,7 @@ public class OptionsWindow : Window
         {
             if (ImGui.BeginTabItem(LangManager.Get(GENERAL)))
             {
+                EnsureThemeModeFilterInitialized();
                 if (ImGui.Checkbox(LangManager.Get(OPTION_PREFER_TEXMAPS), ref Config.Instance.PreferTexMaps))
                 {
                     // Changing terrain-art preference requires regenerating visible tile visuals.
@@ -92,6 +96,7 @@ public class OptionsWindow : Window
                     LangManager.LangIndex = langIndex;
                     Config.Instance.Language = LangManager.LangNames[langIndex];
                 }
+                DrawThemeOptions(uiManager);
                 var numberFormatKeys = new [] { OPTION_NUMBER_FORMAT_HEX, OPTION_NUMBER_FORMAT_DEC, OPTION_NUMBER_FORMAT_HEX_DEC, OPTION_NUMBER_FORMAT_DEC_HEX };
                 var numberFormatLabels = numberFormatKeys.Select(LangManager.Get).ToArray();
                 var numberFormatIndex = (int)Config.Instance.NumberFormat;
@@ -224,6 +229,51 @@ public class OptionsWindow : Window
 
 
     private bool _showNewKeyPopup;
+
+    private void EnsureThemeModeFilterInitialized()
+    {
+        if (_themeModeFilterInitialized)
+        {
+            return;
+        }
+
+        _themeModeFilter = ThemeManager.GetMode(Config.Instance.ThemePreset);
+        _themeModeFilterInitialized = true;
+    }
+
+    private void DrawThemeOptions(UIManager uiManager)
+    {
+        var themeModeLabels = new[]
+        {
+            LangManager.Get(OPTION_THEME_MODE_ALL),
+            LangManager.Get(OPTION_THEME_MODE_LIGHT),
+            LangManager.Get(OPTION_THEME_MODE_DARK),
+        };
+
+        var themeModeIndex = (int)_themeModeFilter;
+        if (ImGui.Combo(LangManager.Get(OPTION_THEME_MODE), ref themeModeIndex, themeModeLabels, themeModeLabels.Length))
+        {
+            _themeModeFilter = (UIThemeModeFilter)themeModeIndex;
+            var allowedPresets = ThemeManager.GetPresets(_themeModeFilter);
+            if (!allowedPresets.Contains(Config.Instance.ThemePreset))
+            {
+                uiManager.ApplyTheme(allowedPresets[0]);
+            }
+        }
+
+        var filteredPresets = ThemeManager.GetPresets(_themeModeFilter);
+        var filteredPresetNames = ThemeManager.GetPresetNames(_themeModeFilter);
+        var themePresetIndex = Array.IndexOf(filteredPresets, Config.Instance.ThemePreset);
+        if (themePresetIndex == -1)
+        {
+            themePresetIndex = 0;
+        }
+
+        if (ImGui.Combo(LangManager.Get(OPTION_THEME_PRESET), ref themePresetIndex, filteredPresetNames, filteredPresetNames.Length))
+        {
+            uiManager.ApplyTheme(filteredPresets[themePresetIndex]);
+        }
+    }
     
     /// <summary>
     /// Draws the two binding slots for one action and handles the modal key-capture flow.

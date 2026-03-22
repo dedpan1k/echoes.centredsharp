@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using CentrED.IO.Models;
+using CentrED.UI;
 using Microsoft.Xna.Framework.Input;
 
 namespace CentrED;
@@ -117,6 +118,11 @@ public class ConfigRoot
     /// Gets or sets the font file name used by the editor UI.
     /// </summary>
     public string FontName = "ProggyClean.ttf";
+
+    /// <summary>
+    /// Gets or sets the globally applied ImGui theme preset.
+    /// </summary>
+    public UIThemePreset ThemePreset = UIThemePreset.GitHubDark;
 
     /// <summary>
     /// Gets or sets the active UI language.

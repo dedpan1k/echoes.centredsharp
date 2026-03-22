@@ -133,6 +133,7 @@ public class UIManager
         if(Config.Instance.Viewports)
             io.ConfigFlags |= ImGuiConfigFlags.ViewportsEnable;
         io.ConfigInputTrickleEventQueue = false;
+        ApplyTheme(Config.Instance.ThemePreset);
         
         if (!File.Exists("imgui.ini") && File.Exists("imgui.ini.default"))
         {
@@ -185,6 +186,15 @@ public class UIManager
             _FontIndex = fontIndex;
         }
         _FontSize = Config.Instance.FontSize;
+    }
+
+    /// <summary>
+    /// Applies the configured global ImGui theme and remembers the chosen preset.
+    /// </summary>
+    public void ApplyTheme(UIThemePreset preset)
+    {
+        Config.Instance.ThemePreset = preset;
+        ThemeManager.Apply(preset);
     }
     
     /// <summary>
