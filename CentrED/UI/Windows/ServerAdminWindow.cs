@@ -8,11 +8,25 @@ using static Hexa.NET.ImGui.ImGuiChildFlags;
 
 namespace CentrED.UI.Windows;
 
+/// <summary>
+/// Administrator-only server management window for users, regions, and a small set of global
+/// server actions.
+/// </summary>
 public class ServerAdminWindow : Window
 {
+    /// <summary>
+    /// The window is only available while connected as an administrator or higher.
+    /// </summary>
     public override bool Enabled => CEDClient.Running && CEDClient.AccessLevel >= AccessLevel.Administrator;
+
+    /// <summary>
+    /// Stable ImGui title/ID pair for the server administration window.
+    /// </summary>
     public override string Name => LangManager.Get(SERVER_ADMINISTRATION_WINDOW) + "###ServerAdmin";
 
+    /// <summary>
+    /// Refreshes the user and region lists whenever the window is opened.
+    /// </summary>
     public override void OnShow()
     {
         if (CEDClient.Running)
@@ -22,6 +36,9 @@ public class ServerAdminWindow : Window
         }
     }
 
+    /// <summary>
+    /// Draws the top-level server actions plus the tabbed user and region administration views.
+    /// </summary>
     protected override void InternalDraw()
     {
         if (!CEDClient.Running)
@@ -31,11 +48,13 @@ public class ServerAdminWindow : Window
         }
         if (ImGui.Button(LangManager.Get(SERVER_SAVE)))
         {
+            // Flush forces pending edits to be persisted on the server immediately.
             CEDClient.Flush();
         }
         ImGui.SameLine();
         if (ImGuiEx.ConfirmButton(LangManager.Get(STOP_SERVER), LangManager.Get(STOP_SERVER_PROMPT)))
         {
+            // Server shutdown is guarded by a confirmation modal because it affects every client.
             CEDClient.Send(new ServerStopPacket("Server is shutting down"));
         }
         ImGui.Separator();
@@ -52,11 +71,17 @@ public class ServerAdminWindow : Window
     }
 
     private int users_selected_index = -1;
+    // The selected user is resolved lazily from the latest admin list and falls back to default
+    // when the selection is out of range.
     private User users_selected => 
         users_selected_index == -1 || users_selected_index >= CEDClient.Admin.Users.Count ? default : CEDClient.Admin.Users[users_selected_index];
     private string users_new_username = "";
     private string users_new_password = "";
 
+    /// <summary>
+    /// Draws the user-management tab, including add/delete, access-level changes, password resets,
+    /// and region membership toggles.
+    /// </summary>
     private void DrawUsersTab()
     {
         if (ImGui.BeginTabItem(LangManager.Get(USERS)))
@@ -88,6 +113,7 @@ public class ServerAdminWindow : Window
                 ImGui.InputText(LangManager.Get(USERNAME), ref users_new_username, 32);
                 ImGui.InputText(LangManager.Get(PASSWORD), ref users_new_password, 32, ImGuiInputTextFlags.Password);
                 
+                // User creation is blocked until the name is unique and both fields are populated.
                 ImGui.BeginDisabled(string.IsNullOrEmpty(users_new_username) || CEDClient.Admin.Users.Any(u => u.Username == users_new_username) || string.IsNullOrEmpty(users_new_password));
                 if (ImGui.Button(LangManager.Get(ADD)))
                 {
@@ -125,6 +151,7 @@ public class ServerAdminWindow : Window
                 ImGui.PushItemWidth(120);
                 if (ImGui.Combo(LangManager.Get(ACCESS_LEVEL), ref acessLevelIndex, string.Join('\0', names)))
                 {
+                    // Access-level updates preserve the rest of the user record and only change the role.
                     if (AccessLevel.TryParse(names[acessLevelIndex], out AccessLevel newAccessLevel))
                     {
                         CEDClient.Send(new ModifyUserPacket(user.Username, "", newAccessLevel, user.Regions));
@@ -161,6 +188,7 @@ public class ServerAdminWindow : Window
                         var hasRegion = user.Regions.Contains(region.Name);
                         if (ImGui.Checkbox(region.Name, ref hasRegion))
                         {
+                            // Region membership changes are sent as a full replacement list for the user.
                             var newRegionList = hasRegion ?
                                 user.Regions.Append(region.Name).ToList() :
                                 user.Regions.Where(r => r != region.Name).ToList();
@@ -176,6 +204,7 @@ public class ServerAdminWindow : Window
     }
 
     private int regions_selected_index = -1;
+    // As with users, the selected region is resolved defensively against the live admin data.
     private Region regions_selected => 
         regions_selected_index == -1 || regions_selected_index >= CEDClient.Admin.Regions.Count ? default : CEDClient.Admin.Regions[regions_selected_index];
     private string regions_new_region_name = "";
@@ -185,6 +214,9 @@ public class ServerAdminWindow : Window
     private int regions_x2;
     private int regions_y2;
 
+    /// <summary>
+    /// Draws the region-management tab, including region CRUD and rectangular area editing.
+    /// </summary>
     private void DrawRegionsTab()
     {
         if (ImGui.BeginTabItem(LangManager.Get(REGIONS)))
@@ -215,6 +247,7 @@ public class ServerAdminWindow : Window
             if (ImGui.BeginPopupModal("AddRegion", ImGuiWindowFlags.AlwaysAutoResize))
             {
                 ImGui.InputText(LangManager.Get(NAME), ref regions_new_region_name, 32);
+                // Region names must be unique before the create action is enabled.
                 ImGui.BeginDisabled(string.IsNullOrEmpty(regions_new_region_name) || CEDClient.Admin.Regions.Any(r => r.Name == regions_new_region_name));
                 if (ImGui.Button(LangManager.Get(ADD)))
                 {
@@ -250,6 +283,7 @@ public class ServerAdminWindow : Window
                 ImGui.SameLine();
                 if (ImGui.Button(LangManager.Get(ADD) + "##Area"))
                 {
+                    // New areas start empty and are then edited in the detail pane on the right.
                     CEDClient.Send(new ModifyRegionPacket(regions_selected.Name, regions_selected.Areas.Append(new RectU16()).ToList()));
                 }
                 ImGui.SameLine();
@@ -267,6 +301,7 @@ public class ServerAdminWindow : Window
                     changedArea = regions_x1 != curArea.X1 || regions_y1 != curArea.Y1 || regions_x2 != curArea.X2 ||
                                       regions_y2 != curArea.Y2;
                 }
+                // Save is only enabled when the editable coordinates diverge from the selected stored area.
                 ImGui.BeginDisabled(!changedArea);
                 ImGui.SameLine();
                 if (ImGui.Button(LangManager.Get(SAVE)))
@@ -289,6 +324,7 @@ public class ServerAdminWindow : Window
                             var area = region.Areas[i];
                             if (ImGui.Selectable($"{area}##{i}", regions_area_selected == i))
                             {
+                                // Selecting an area copies its coordinates into the edit buffer.
                                 regions_area_selected = i;
                                 regions_x1 = area.X1;
                                 regions_y1 = area.Y1;
@@ -318,6 +354,9 @@ public class ServerAdminWindow : Window
         }
     }
 
+    /// <summary>
+    /// Draws all region overlays onto the minimap, highlighting the currently edited area.
+    /// </summary>
     public void DrawArea(Vector2 currentPos)
     {
         if (!Show)
@@ -331,19 +370,25 @@ public class ServerAdminWindow : Window
                 continue;
 
             var area = regions_selected.Areas[i];
+            // Non-selected areas use the shared green overlay so the active edit rectangle stands out.
             DrawRect(currentPos, area, ImGuiColor.Green);
         }
 
         if (regions_area_selected != -1)
         {
+            // The current edit buffer is drawn in pink, even before the changes are saved.
             DrawRect(currentPos, new RectU16((ushort)regions_x1, (ushort)regions_y1, (ushort)regions_x2, (ushort)regions_y2), ImGuiColor.Pink);
         }
     }
 
+    /// <summary>
+    /// Draws one rectangular region overlay on the minimap.
+    /// </summary>
     private void DrawRect(Vector2 currentPos, RectU16 area, Vector4 color)
     {
         ImGui.GetWindowDrawList().AddRect
         (
+            // Region coordinates are world-tile units; the minimap reduces them by eight.
             currentPos + new Vector2(area.X1 / 8, area.Y1 / 8),
             currentPos + new Vector2(area.X2 / 8, area.Y2 / 8),
             ImGui.GetColorU32(color)

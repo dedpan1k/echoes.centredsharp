@@ -6,11 +6,26 @@ using static CentrED.Application;
 
 namespace CentrED.UI.Windows;
 
+/// <summary>
+/// Displays a compact view of the client's undo history and allows the stack to be cleared
+/// after explicit confirmation.
+/// </summary>
 public class HistoryWindow : Window
 {
+    /// <summary>
+    /// Fixed title for the undo history window.
+    /// </summary>
     public override string Name => "History";
+
+    /// <summary>
+    /// The history view uses a fixed-size layout so the table and confirmation modal remain
+    /// predictable regardless of the current docking arrangement.
+    /// </summary>
     public override ImGuiWindowFlags WindowFlags => ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoResize;
     
+    /// <summary>
+    /// Draws the recent undo history table along with a clear-history confirmation flow.
+    /// </summary>
     protected override void InternalDraw()
     {
         if (CEDClient.UndoStack.Count == 0)
@@ -21,14 +36,15 @@ public class HistoryWindow : Window
         
         ImGui.Text($"Tasks in history: {CEDClient.UndoStack.Count}");
         
-        // Create table
+        // The table only shows a short recent slice of the undo stack so the window stays
+        // readable even when the session has accumulated a large history.
         if (ImGui.BeginTable("UndoTable", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.SizingFixedFit))
         {
-            // Set column widths
+            // Fixed column widths keep the task labels and detail strings aligned across rows.
             ImGui.TableSetupColumn("Task", ImGuiTableColumnFlags.WidthFixed, 150);
             ImGui.TableSetupColumn("Details", ImGuiTableColumnFlags.WidthFixed, 350);
 
-            // Headers
+            // The stack stores either single packets or grouped command batches.
             ImGui.TableHeadersRow();
 
             var cnt = 0;
@@ -51,6 +67,7 @@ public class HistoryWindow : Window
                     ImGui.Text("Task collection"u8);
                     ImGui.TableNextColumn();
                     
+                    // Grouped commands are expanded inline so multi-packet edits remain inspectable.
                     foreach (var packet in command)
                     {
                         ImGui.TableNextRow();
@@ -64,6 +81,8 @@ public class HistoryWindow : Window
 
                 if (cnt >= 25)
                 {
+                    // Cap the output to the most recent entries to avoid turning this helper
+                    // window into a full scrolling log.
                     break;
                 }
             }
@@ -82,6 +101,7 @@ public class HistoryWindow : Window
             ImGui.Text("Are you sure you want to clear the history?\nThis operation cannot be undone.\n\n"u8);
             ImGui.Spacing();
 
+            // Both buttons use the same width so the confirmation dialog stays visually balanced.
             if (ImGui.Button("Yes", new Vector2(120, 0)))
             {
                 CEDClient.UndoStack.Clear();
@@ -99,10 +119,15 @@ public class HistoryWindow : Window
         }
     }
 
+    /// <summary>
+    /// Converts a history packet into a short human-readable description for the undo table.
+    /// </summary>
     private static void GetHistory(Packet p, out string command, out string details)
     {
         details = "Error parsing packet"; // should never be shown
 
+        // The history stack stores the original network packets, so the UI translates the
+        // packet types back into editor-facing task labels here.
         switch (p)
         {
             case DrawMapPacket dmp:

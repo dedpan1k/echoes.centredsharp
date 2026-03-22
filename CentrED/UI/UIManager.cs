@@ -17,6 +17,10 @@ using FNARectangle = Microsoft.Xna.Framework.Rectangle;
 
 namespace CentrED.UI;
 
+/// <summary>
+/// Owns the ImGui context for the editor, routes SDL events into ImGui, and coordinates
+/// the set of application windows that participate in the main docking layout.
+/// </summary>
 public class UIManager
 {
     public enum Category
@@ -30,12 +34,15 @@ public class UIManager
     private GraphicsDevice _graphicsDevice;
     private Keymap _keymap;
     
-    // Event handling
+    // SDL keeps a single global event filter, so UIManager has to wrap the previous one
+    // rather than replacing it outright.
     private SDL_EventFilter _EventFilter;
     private SDL_EventFilter _PrevEventFilter;
 
     public readonly bool HasViewports;
 
+    // Windows are stored both by concrete type for direct access and by category so they
+    // can be exposed in the appropriate menu.
     internal Dictionary<Type, Window> AllWindows = new();
     internal List<Window> MainWindows = new();
     internal List<Window> ToolsWindows = new();
@@ -49,11 +56,19 @@ public class UIManager
     private int _FontSize;
     public event Action? FontChanged;
 
+    /// <summary>
+    /// Notifies windows that cached measurements or layout may need to be refreshed after
+    /// the current font family or size changes.
+    /// </summary>
     public void OnFontChanged()
     {
         FontChanged?.Invoke();
     }
 
+    /// <summary>
+    /// Updates the active font size and immediately pushes the new font onto the current
+    /// ImGui font stack so subsequent widgets render with the new size in the same frame.
+    /// </summary>
     public int FontSize
     {
         get => _FontSize;
@@ -67,6 +82,9 @@ public class UIManager
         }
     }
 
+    /// <summary>
+    /// Switches to a different loaded font while preserving the configured font size.
+    /// </summary>
     public int FontIndex
     {
         get => _FontIndex;
@@ -80,6 +98,10 @@ public class UIManager
         }
     }
 
+    /// <summary>
+    /// Creates the ImGui context, configures platform backends, registers the default set
+    /// of editor windows, and restores persisted font preferences.
+    /// </summary>
     public unsafe UIManager(GraphicsDevice gd, GameWindow window, Keymap keymap)
     {
         _graphicsDevice = gd;
@@ -93,8 +115,9 @@ public class UIManager
         var glContext = SDL_GL_GetCurrentContext();
         if (glContext == IntPtr.Zero) 
         {
+            // FNA can run without an OpenGL context; in that case SDL3's GPU path is used.
             ImGuiImplSDL3.InitForSDLGPU((SDLWindow*)window.Handle);
-            //Viewports work for non-OpenGL
+            // Multi-viewport support is still available on the GPU backend.
             io.BackendFlags |= ImGuiBackendFlags.RendererHasViewports;
         }
         else
@@ -113,6 +136,8 @@ public class UIManager
         
         if (!File.Exists("imgui.ini") && File.Exists("imgui.ini.default"))
         {
+            // Seed the first launch with the repository's default layout when the user has
+            // not created a personal imgui.ini yet.
             ImGui.LoadIniSettingsFromDisk("imgui.ini.default");
         }
 
@@ -139,7 +164,8 @@ public class UIManager
         AddWindow(Category.Menu, new MinimapWindow());
         DebugWindow = new DebugWindow();
         
-        // Use a filter to get SDL events for your extra window
+        // Hook the global SDL event filter so detached ImGui platform windows continue to
+        // forward input events to the current ImGui context.
         IntPtr prevUserData;
         SDL_GetEventFilter(
             out _PrevEventFilter,
@@ -161,6 +187,10 @@ public class UIManager
         _FontSize = Config.Instance.FontSize;
     }
     
+    /// <summary>
+    /// Forwards every SDL event to the SDL3 ImGui backend before handing it back to any
+    /// previously registered filter in the chain.
+    /// </summary>
     private unsafe bool EventFilter(IntPtr userdata, SDL_Event* evt)
     {
         ImGuiImplSDL3.ProcessEvent((SDLEvent*)evt);
@@ -171,6 +201,10 @@ public class UIManager
         return true;
     }
 
+    /// <summary>
+    /// Loads the built-in default font plus any TrueType fonts located next to the game
+    /// executable so they can be selected at runtime.
+    /// </summary>
     private unsafe void LoadFonts()
     {
         var io = ImGui.GetIO();
@@ -185,6 +219,9 @@ public class UIManager
         }
     }
 
+    /// <summary>
+    /// Registers a window for lookup and for menu placement based on its category.
+    /// </summary>
     public void AddWindow(Category category, Window window)
     {
         AllWindows.Add(window.GetType(), window);
@@ -208,6 +245,11 @@ public class UIManager
     private bool openContextMenu;
     private TileObject? contextMenuTile;
 
+    /// <summary>
+    /// Returns the largest viewport dimensions currently managed by ImGui. Detached windows
+    /// can live on different monitors, so the maximum viewport size is more useful than the
+    /// main viewport alone when sizing popups or auxiliary windows.
+    /// </summary>
     public Vector2 MaxWindowSize()
     {
         int x = 0;
@@ -222,6 +264,10 @@ public class UIManager
         return new Vector2(x, y);
     }
 
+    /// <summary>
+    /// Starts a new ImGui frame and clears the list of rectangles used for hit-testing UI
+    /// coverage against world interactions.
+    /// </summary>
     public void NewFrame()
     {
         if(ImGui.GetMainViewport().PlatformRequestClose)
@@ -233,6 +279,11 @@ public class UIManager
     }
 
     private List<Rectangle> _windowRects = [];
+
+    /// <summary>
+    /// Captures the current ImGui window bounds so the game can tell whether mouse input is
+    /// over the editor UI instead of over the world viewport.
+    /// </summary>
     public void AddCurrentWindowRect()
     {
         var pos = ImGui.GetWindowPos();
@@ -240,6 +291,10 @@ public class UIManager
         _windowRects.Add(new Rectangle((int)pos.X, (int)pos.Y, (int)size.X, (int)size.Y));
     }
 
+    /// <summary>
+    /// Checks whether a screen position falls inside any window rectangle recorded during the
+    /// current frame.
+    /// </summary>
     public bool IsOverUI(int x, int y)
     {
         foreach (var rect in _windowRects)
@@ -251,6 +306,9 @@ public class UIManager
     }
     
 
+    /// <summary>
+    /// Executes the main UI pass for the primary window.
+    /// </summary>
     public void Draw()
     {
         NewFrame();
@@ -262,6 +320,9 @@ public class UIManager
         Metrics.Stop("DrawUI");
     }
 
+    /// <summary>
+    /// Renders ImGui platform windows when multi-viewport support is enabled.
+    /// </summary>
     public void DrawExtraWindows()
     {
         if (ImGui.GetIO().ConfigFlags.HasFlag(ImGuiConfigFlags.ViewportsEnable))
@@ -273,6 +334,10 @@ public class UIManager
         }
     }
 
+    /// <summary>
+    /// Schedules the tile context menu to open on the next frame so it runs inside a valid
+    /// ImGui popup lifecycle.
+    /// </summary>
     public void OpenContextMenu(TileObject? selected)
     {
         openContextMenu = true;
@@ -281,6 +346,10 @@ public class UIManager
 
     private bool _resetLayout;
 
+    /// <summary>
+    /// Draws the full editor UI for the current frame, including the docking host, menus,
+    /// status surfaces, registered windows, and transient popups.
+    /// </summary>
     protected virtual void DrawUI()
     {
         ShowCrashInfo();
@@ -291,6 +360,8 @@ public class UIManager
         
         if (_resetLayout)
         {
+            // Reset both ImGui's persisted layout file and the in-memory window state cache
+            // so the default layout applies cleanly on the next frame.
             ImGui.LoadIniSettingsFromDisk("imgui.ini.default");
             Config.Instance.Layout = new Dictionary<string, WindowState>();
             _resetLayout = false;
@@ -312,6 +383,10 @@ public class UIManager
         ImGui.PopFont();
     }
     
+    /// <summary>
+    /// Draws the right-click context menu for the currently selected tile, exposing only the
+    /// actions that make sense for the selected object type.
+    /// </summary>
     private void DrawContextMenu()
     {
         var selected = contextMenuTile;
@@ -360,6 +435,10 @@ public class UIManager
         }
     }
 
+    /// <summary>
+    /// Builds the top-level menu bar and delegates per-window menu entries to the registered
+    /// window instances.
+    /// </summary>
     private void DrawMainMenu()
     {
         if (ImGui.BeginMainMenuBar())
@@ -433,6 +512,10 @@ public class UIManager
         }
     }
 
+    /// <summary>
+    /// Displays connection state, selection details, tool metadata, and runtime performance
+    /// information in the bottom status bar.
+    /// </summary>
     private void DrawStatusBar()
     {
         if (ImGuiEx.BeginStatusBar())
@@ -488,6 +571,10 @@ public class UIManager
         return DrawImage(tex, bounds, new Vector2(bounds.Width, bounds.Height));
     }
     
+    /// <summary>
+    /// Draws either a cropped or stretched view of a texture into the current ImGui layout.
+    /// The supplied bounds describe the source rectangle inside the texture.
+    /// </summary>
     internal unsafe bool DrawImage(Texture2D? tex, Rectangle bounds, Vector2 size, bool stretch = false)
     {
         if (tex == null)
@@ -497,6 +584,9 @@ public class UIManager
         }
         var texPtr = _uiRenderer.BindTexture(tex);
         var oldPos = ImGui.GetCursorPos();
+
+        // When the source region is smaller than the requested draw size, center it within
+        // the reserved layout space rather than anchoring it to the top-left corner.
         var offsetX = (size.X - bounds.Width) / 2;
         var offsetY = (size.Y - bounds.Height) / 2;
         if (!stretch)
@@ -510,6 +600,10 @@ public class UIManager
         var targetSize = stretch ? size : new Vector2(Math.Min(bounds.Width, size.X), Math.Min(bounds.Height, size.Y));
         var uvOffsetX = stretch ? 0 : Math.Min(0, offsetX);
         var uvOffsetY = stretch ? 0 : Math.Min(0, offsetY);
+
+        // Negative offsets mean the caller asked for a source region larger than the display
+        // area. Convert that clipping into UV coordinates so ImGui samples only the visible
+        // subsection of the texture.
         var uv0 = new Vector2((bounds.X - uvOffsetX) / fWidth, (bounds.Y - uvOffsetY) / fHeight);
         var uv1 = new Vector2((bounds.X + bounds.Width + uvOffsetX) / fWidth, (bounds.Y + bounds.Height + uvOffsetY) / fHeight);
         ImGui.Image(new ImTextureRef(null, texPtr), targetSize, uv0, uv1);
@@ -519,6 +613,10 @@ public class UIManager
     private bool _showCrashPopup;
     private string _crashText = "";
 
+    /// <summary>
+    /// Captures exception details for display on the next UI frame and prevents the editor
+    /// from continuing normal interaction while in the crash state.
+    /// </summary>
     public void ReportCrash(Exception exception)
     {
         _showCrashPopup = true;
@@ -526,6 +624,10 @@ public class UIManager
         CEDGame.Closing = true;
     }
 
+    /// <summary>
+    /// Shows a modal crash dialog that allows the user to copy the stack trace or quit and
+    /// persist the crash log to disk.
+    /// </summary>
     public void ShowCrashInfo()
     {
         if (CEDGame.Closing)
@@ -559,6 +661,11 @@ public class UIManager
     }
 
     private bool _showServerStatePopup;
+
+    /// <summary>
+    /// Displays a blocking modal while the server is busy with an operation that should keep
+    /// the user from issuing conflicting requests.
+    /// </summary>
     public void ServerStatePopup()
     {
         if (!CEDClient.Running)
@@ -589,6 +696,9 @@ public class UIManager
         }
     }
     
+    /// <summary>
+    /// Returns a registered window by its concrete type.
+    /// </summary>
     public T GetWindow<T>() where T : Window
     {
         return (T)AllWindows[typeof(T)];
