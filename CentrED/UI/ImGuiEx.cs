@@ -247,7 +247,7 @@ public static class ImGuiEx
         // Align the sidebar like a menu/status surface while respecting the platform safe area.
         ImGuiP.ImGuiNextWindowData().MenuBarOffsetMinVal = new Vector2
             (style.DisplaySafeAreaPadding.X, Math.Max(style.DisplaySafeAreaPadding.Y - style.FramePadding.Y, 0));
-        var flags = ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoDocking | ImGuiWindowFlags.NoNav | ImGuiWindowFlags.NoInputs;
+        var flags = ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoDocking | ImGuiWindowFlags.NoNav;
         var height = ImGui.GetFrameHeight();
         ImGui.PushStyleVar(ImGuiStyleVar.WindowMinSize, new Vector2(0, height));
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(6,4));
@@ -259,6 +259,27 @@ public static class ImGuiEx
             return false;
         }
         return isOpen;
+    }
+
+    /// <summary>
+    /// Begins a floating footer drawer anchored to the bottom of the main viewport.
+    /// </summary>
+    public static bool BeginFooterDrawer(string id, Vector2 position, Vector2 size)
+    {
+        ImGui.SetNextWindowPos(position, ImGuiCond.Always);
+        ImGui.SetNextWindowSize(size, ImGuiCond.Always);
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(10, 10));
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 6f);
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 1f);
+        ImGui.PushStyleColor(ImGuiCol.WindowBg, ImGui.GetStyle().Colors[(int)ImGuiCol.PopupBg]);
+        ImGui.PushStyleColor(ImGuiCol.Border, ImGui.GetStyle().Colors[(int)ImGuiCol.HeaderActive]);
+
+        if (!ImGui.Begin(id,
+                ImGuiWindowFlags.NoDocking | ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoSavedSettings))
+        {
+            return false;
+        }
+        return true;
     }
 
     /// <summary>
@@ -291,6 +312,16 @@ public static class ImGuiEx
     {
         ImGui.End();
         ImGui.PopStyleVar(2);
+    }
+
+    /// <summary>
+    /// Ends a footer drawer begun by <see cref="BeginFooterDrawer"/>.
+    /// </summary>
+    public static void EndFooterDrawer()
+    {
+        ImGui.End();
+        ImGui.PopStyleColor(2);
+        ImGui.PopStyleVar(3);
     }
 
     /// <summary>

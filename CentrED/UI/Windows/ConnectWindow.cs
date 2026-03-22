@@ -15,10 +15,18 @@ namespace CentrED.UI.Windows;
 /// </summary>
 public class ConnectWindow : Window
 {
+    private static readonly Vector2 DefaultWindowSize = new(510f, 250f);
+    private static readonly Vector2 PreferredFooterDrawerSize = new(510f, 310f);
+
     /// <summary>
     /// Stable ImGui title/ID pair for the connection window.
     /// </summary>
     public override string Name => LangManager.Get(CONNECT_WINDOW) + "###Connect";
+
+    /// <summary>
+    /// Keeps the standalone connection window at a fixed size.
+    /// </summary>
+    public override ImGuiWindowFlags WindowFlags => ImGuiWindowFlags.NoResize;
 
     /// <summary>
     /// The connection window is meant to be visible on first launch so users can establish a
@@ -46,26 +54,89 @@ public class ConnectWindow : Window
     private string _profileName = "";
 
     /// <summary>
+    /// Current status text shown in the footer trigger.
+    /// </summary>
+    public string StatusText
+    {
+        get
+        {
+            UpdateConnectionStatus();
+            return Info;
+        }
+    }
+
+    /// <summary>
+    /// Current status color shown in the footer trigger.
+    /// </summary>
+    public Vector4 StatusColor
+    {
+        get
+        {
+            UpdateConnectionStatus();
+            return InfoColor;
+        }
+    }
+
+    /// <summary>
+    /// Preferred footer drawer size for the connect form.
+    /// </summary>
+    public Vector2 PreferredDrawerSize => PreferredFooterDrawerSize;
+
+    /// <summary>
+    /// Refreshes the editable fields from the active profile whenever the UI is opened.
+    /// </summary>
+    public override void OnShow()
+    {
+        LoadProfile(ProfileManager.ActiveProfile);
+    }
+
+    /// <summary>
     /// Draws the profile picker, editable connection fields, and connect/disconnect controls.
     /// </summary>
     protected override void InternalDraw()
     {
-        if (!Show)
-            return;
+        ImGui.SetWindowSize(DefaultWindowSize);
+        DrawContents();
+    }
 
-        ImGui.Begin(Name, ref _show, ImGuiWindowFlags.NoResize);
-        ImGui.SetWindowSize(Name, new Vector2(510, 250));
+    /// <summary>
+    /// Draws the connection form inside a footer drawer.
+    /// </summary>
+    public void DrawDrawerContents()
+    {
+        DrawContents();
+    }
+
+    private void LoadProfile(Profile profile)
+    {
+        _profileIndex = ProfileManager.Profiles.IndexOf(profile);
+        _profileName = profile.Name;
+        _hostname = profile.Hostname;
+        _port = profile.Port;
+        _username = profile.Username;
+        _password = PasswordCrypter.Decrypt(profile.Password);
+        _clientPath = profile.ClientPath;
+    }
+
+    private void UpdateConnectionStatus()
+    {
+        if (CEDClient.Status != "")
+        {
+            Info = CEDClient.Status;
+            InfoColor = CEDClient.Running ? ImGuiColor.Green : ImGuiColor.Red;
+        }
+    }
+
+    private void DrawContents()
+    {
+        UpdateConnectionStatus();
+
         if (ImGui.Combo(LangManager.Get(PROFILE), ref _profileIndex, ProfileManager.ProfileNames, ProfileManager.Profiles.Count))
         {
             // Switching profiles replaces the working form values with the selected profile's
             // persisted connection settings.
             var profile = ProfileManager.Profiles[_profileIndex];
-            _profileName = profile.Name;
-            _hostname = profile.Hostname;
-            _port = profile.Port;
-            _username = profile.Username;
-            _password = PasswordCrypter.Decrypt(profile.Password);
-            _clientPath = profile.ClientPath;
+            LoadProfile(profile);
             Config.Instance.ActiveProfile = profile.Name;
         }
         ImGui.SameLine();
@@ -187,15 +258,6 @@ public class ConnectWindow : Window
                 ).Start();
             }
         }
-
-        // Once the client exposes a more specific status string, prefer it over the local
-        // progress text so the window reflects the actual connection state.
-        if (CEDClient.Status != "")
-        {
-            Info = CEDClient.Status;
-            InfoColor = CEDClient.Running ? ImGuiColor.Green : ImGuiColor.Red;
-        }
         ImGui.EndDisabled();
-        ImGui.End();
     }
 }

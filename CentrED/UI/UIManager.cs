@@ -13,6 +13,7 @@ using static CentrED.Application;
 using static CentrED.LangEntry;
 using Rectangle = System.Drawing.Rectangle;
 using Vector2 = System.Numerics.Vector2;
+using Vector4 = System.Numerics.Vector4;
 using FNARectangle = Microsoft.Xna.Framework.Rectangle;
 
 namespace CentrED.UI;
@@ -55,6 +56,13 @@ public class UIManager
     private int _FontIndex;
     private int _FontSize;
     public event Action? FontChanged;
+    private const float FooterDrawerMargin = 8f;
+    private const float FooterDrawerGap = 8f;
+    private const float FooterDrawerAnimationSpeed = 8f;
+    private bool _showConnectDrawer;
+    private bool _showServerDrawer;
+    private float _connectDrawerProgress;
+    private float _serverDrawerProgress;
 
     /// <summary>
     /// Notifies windows that cached measurements or layout may need to be refreshed after
@@ -379,6 +387,7 @@ public class UIManager
         DrawMainMenu();
         DrawApplicationToolbar();
         DrawStatusBar();
+        DrawFooterDrawers();
         ImGui.DockSpaceOverViewport(ImGuiDockNodeFlags.PassthruCentralNode | ImGuiDockNodeFlags.NoDockingOverCentralNode);
         DrawContextMenu();
         foreach (var window in AllWindows.Values)
@@ -539,8 +548,26 @@ public class UIManager
     {
         if (ImGuiEx.BeginStatusBar())
         {
-            var connectWindow = CEDGame.UIManager.GetWindow<ConnectWindow>();
-            ImGui.TextColored(connectWindow.InfoColor, connectWindow.Info);
+            var connectWindow = GetWindow<ConnectWindow>();
+            var serverWindow = GetWindow<ServerWindow>();
+
+            if (DrawFooterToggle($"{connectWindow.StatusText}###FooterConnectToggle", connectWindow.StatusColor, _showConnectDrawer))
+            {
+                _showConnectDrawer = !_showConnectDrawer;
+                if (_showConnectDrawer)
+                {
+                    connectWindow.OnShow();
+                }
+            }
+            ImGui.SameLine();
+            if (DrawFooterToggle($"{serverWindow.Name}: {serverWindow.StatusText}###FooterServerToggle", serverWindow.StatusColor, _showServerDrawer))
+            {
+                _showServerDrawer = !_showServerDrawer;
+                if (_showServerDrawer)
+                {
+                    serverWindow.OnShow();
+                }
+            }
             if(CEDClient.Running)
             {
                 ImGui.SameLine();
@@ -565,13 +592,140 @@ public class UIManager
                     ImGui.Text($"Area: {bt.Area.Width}x{bt.Area.Height}");
                     ImGui.SameLine();
                 }
-                var rightAligned = $"X: {mapManager.TilePosition.X} Y: {mapManager.TilePosition.Y} Zoom: {mapManager.Camera.Zoom:F1} | FPS: {ImGui.GetIO().Framerate:F1}";
+                var rightAligned = $"X: {mapManager.TilePosition.X} Y: {mapManager.TilePosition.Y} ({CEDClient.WidthInTiles}x{CEDClient.HeightInTiles}) Zoom: {mapManager.Camera.Zoom:F1} | FPS: {ImGui.GetIO().Framerate:F1}";
                 ImGui.SetCursorPosX(ImGui.GetWindowWidth() - ImGui.CalcTextSize(rightAligned).X - ImGui.GetStyle().WindowPadding.X);
                 ImGui.Text(rightAligned);
-                CEDGame.UIManager.AddCurrentWindowRect();
             }
+            AddCurrentWindowRect();
             ImGuiEx.EndStatusBar();
         }
+    }
+
+    private bool DrawFooterToggle(string label, Vector4 color, bool isOpen)
+    {
+        var buttonColor = new Vector4(color.X, color.Y, color.Z, isOpen ? 0.38f : 0.22f);
+        var hoveredColor = new Vector4(color.X, color.Y, color.Z, isOpen ? 0.5f : 0.34f);
+        var activeColor = new Vector4(color.X, color.Y, color.Z, 0.58f);
+
+        ImGui.PushStyleColor(ImGuiCol.Button, buttonColor);
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, hoveredColor);
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, activeColor);
+        ImGui.PushStyleColor(ImGuiCol.Text, color);
+        var clicked = ImGui.Button(label);
+        ImGui.PopStyleColor(4);
+        return clicked;
+    }
+
+    private void DrawFooterDrawers()
+    {
+        _connectDrawerProgress = UpdateDrawerProgress(_connectDrawerProgress, _showConnectDrawer);
+        _serverDrawerProgress = UpdateDrawerProgress(_serverDrawerProgress, _showServerDrawer);
+
+        var connectWindow = GetWindow<ConnectWindow>();
+        var serverWindow = GetWindow<ServerWindow>();
+        var drawConnect = _connectDrawerProgress > 0f;
+        var drawServer = _serverDrawerProgress > 0f;
+        if (!drawConnect && !drawServer)
+        {
+            return;
+        }
+
+        var viewport = ImGui.GetMainViewport();
+        var availableWidth = viewport.WorkSize.X - FooterDrawerMargin * 2f;
+        var connectWidth = 0f;
+        var serverWidth = 0f;
+
+        if (drawConnect && drawServer)
+        {
+            availableWidth -= FooterDrawerGap;
+            var totalPreferredWidth = connectWindow.PreferredDrawerSize.X + serverWindow.PreferredDrawerSize.X;
+            var widthScale = totalPreferredWidth > availableWidth ? availableWidth / totalPreferredWidth : 1f;
+            connectWidth = connectWindow.PreferredDrawerSize.X * widthScale;
+            serverWidth = serverWindow.PreferredDrawerSize.X * widthScale;
+        }
+        else if (drawConnect)
+        {
+            connectWidth = MathF.Min(connectWindow.PreferredDrawerSize.X, availableWidth);
+        }
+        else if (drawServer)
+        {
+            serverWidth = MathF.Min(serverWindow.PreferredDrawerSize.X, availableWidth);
+        }
+
+        var currentOffsetX = FooterDrawerMargin;
+        var bottomOffset = ImGui.GetFrameHeight() + FooterDrawerMargin;
+
+        if (drawConnect)
+        {
+            DrawFooterDrawer(
+                "Connect###FooterConnectDrawer",
+                connectWindow.Name,
+                connectWidth,
+                connectWindow.PreferredDrawerSize.Y * _connectDrawerProgress,
+                currentOffsetX,
+                bottomOffset,
+                ref _showConnectDrawer,
+                connectWindow.DrawDrawerContents);
+            currentOffsetX += connectWidth + FooterDrawerGap;
+        }
+
+        if (drawServer)
+        {
+            DrawFooterDrawer(
+                "Local Server###FooterServerDrawer",
+                serverWindow.Name,
+                serverWidth,
+                serverWindow.PreferredDrawerSize.Y * _serverDrawerProgress,
+                currentOffsetX,
+                bottomOffset,
+                ref _showServerDrawer,
+                serverWindow.DrawDrawerContents);
+        }
+    }
+
+    private void DrawFooterDrawer(
+        string id,
+        string title,
+        float width,
+        float height,
+        float offsetX,
+        float bottomOffset,
+        ref bool isOpen,
+        Action drawContents)
+    {
+        if (width <= 0f || height <= 1f)
+        {
+            return;
+        }
+
+        var viewport = ImGui.GetMainViewport();
+        var position = new Vector2(
+            viewport.WorkPos.X + offsetX,
+            viewport.WorkPos.Y + viewport.WorkSize.Y - bottomOffset - height);
+        var size = new Vector2(width, height);
+
+        if (ImGuiEx.BeginFooterDrawer(id, position, size))
+        {
+            ImGui.TextDisabled(title.Split("###")[0]);
+            var closeLabel = LangManager.Get(HIDE);
+            var closeWidth = ImGui.CalcTextSize(closeLabel).X + ImGui.GetStyle().FramePadding.X * 2f;
+            ImGui.SameLine();
+            ImGui.SetCursorPosX(MathF.Max(ImGui.GetCursorPosX(), ImGui.GetWindowWidth() - closeWidth - 10f));
+            if (ImGui.SmallButton($"{closeLabel}##{id}"))
+            {
+                isOpen = false;
+            }
+            ImGui.Separator();
+            drawContents();
+            AddCurrentWindowRect();
+        }
+        ImGuiEx.EndFooterDrawer();
+    }
+
+    private static float UpdateDrawerProgress(float progress, bool show)
+    {
+        var delta = ImGui.GetIO().DeltaTime * FooterDrawerAnimationSpeed;
+        return show ? MathF.Min(1f, progress + delta) : MathF.Max(0f, progress - delta);
     }
 
     internal bool DrawImage(Texture2D? tex, FNARectangle bounds)
