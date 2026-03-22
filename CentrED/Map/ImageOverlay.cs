@@ -5,8 +5,14 @@ using static CentrED.Constants;
 
 namespace CentrED.Map;
 
+/// <summary>
+/// Represents an editor image overlay anchored in world space above the map.
+/// </summary>
 public class ImageOverlay : MapObject
 {
+    /// <summary>
+    /// Initializes an empty image overlay.
+    /// </summary>
     public ImageOverlay()
     {
         for (int i = 0; i < 4; i++)
@@ -23,18 +29,27 @@ public class ImageOverlay : MapObject
     private float _opacity = 1.0f;
     private float _screen = 0.0f;
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the overlay is enabled.
+    /// </summary>
     public bool Enabled
     {
         get => _enabled;
         set => _enabled = value;
     }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the overlay should render above terrain.
+    /// </summary>
     public bool DrawAboveTerrain
     {
         get => _drawAboveTerrain;
         set => _drawAboveTerrain = value;
     }
 
+    /// <summary>
+    /// Gets or sets the world X coordinate in tiles.
+    /// </summary>
     public int WorldX
     {
         get => _worldX;
@@ -45,6 +60,9 @@ public class ImageOverlay : MapObject
         }
     }
 
+    /// <summary>
+    /// Gets or sets the world Y coordinate in tiles.
+    /// </summary>
     public int WorldY
     {
         get => _worldY;
@@ -55,6 +73,9 @@ public class ImageOverlay : MapObject
         }
     }
 
+    /// <summary>
+    /// Gets or sets the overlay scale factor.
+    /// </summary>
     public float Scale
     {
         get => _scale;
@@ -65,6 +86,9 @@ public class ImageOverlay : MapObject
         }
     }
 
+    /// <summary>
+    /// Gets or sets the overlay opacity from 0 to 1.
+    /// </summary>
     public float Opacity
     {
         get => _opacity;
@@ -78,6 +102,9 @@ public class ImageOverlay : MapObject
         }
     }
 
+    /// <summary>
+    /// Gets or sets the screen-space blending factor from 0 to 1.
+    /// </summary>
     public float Screen
     {
         get => _screen;
@@ -91,11 +118,31 @@ public class ImageOverlay : MapObject
         }
     }
 
+    /// <summary>
+    /// Gets the loaded image width in pixels.
+    /// </summary>
     public int ImageWidth => Texture?.Width ?? 0;
+
+    /// <summary>
+    /// Gets the loaded image height in pixels.
+    /// </summary>
     public int ImageHeight => Texture?.Height ?? 0;
+
+    /// <summary>
+    /// Gets the scaled overlay width expressed in tiles.
+    /// </summary>
     public float WidthInTiles => ImageWidth * _scale;
+
+    /// <summary>
+    /// Gets the scaled overlay height expressed in tiles.
+    /// </summary>
     public float HeightInTiles => ImageHeight * _scale;
 
+    /// <summary>
+    /// Loads an overlay image from disk.
+    /// </summary>
+    /// <param name="gd">The graphics device used to create the texture.</param>
+    /// <param name="path">The image path.</param>
     public void LoadImage(GraphicsDevice gd, string path)
     {
         UnloadImage();
@@ -106,6 +153,9 @@ public class ImageOverlay : MapObject
         UpdateVertices();
     }
 
+    /// <summary>
+    /// Unloads the current overlay texture.
+    /// </summary>
     public void UnloadImage()
     {
         if (Texture != null)
@@ -115,6 +165,9 @@ public class ImageOverlay : MapObject
         }
     }
 
+    /// <summary>
+    /// Rebuilds the overlay quad after a transform or texture change.
+    /// </summary>
     private void UpdateVertices()
     {
         if (Texture == null)

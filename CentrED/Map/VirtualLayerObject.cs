@@ -4,6 +4,9 @@ using static CentrED.Constants;
 
 namespace CentrED.Map;
 
+/// <summary>
+/// Represents the translucent helper plane used for virtual-layer previews.
+/// </summary>
 public class VirtualLayerObject : MapObject
 {
     private VirtualLayerObject()
@@ -15,12 +18,19 @@ public class VirtualLayerObject : MapObject
     }
     
     private static VirtualLayerObject _instance = new();
+
+    /// <summary>
+    /// Gets the shared virtual-layer overlay instance.
+    /// </summary>
     public static VirtualLayerObject Instance => _instance;
 
     private ushort _width;
     private ushort _height;
     private sbyte _z;
     
+    /// <summary>
+    /// Gets or sets the overlay width in tiles.
+    /// </summary>
     public ushort Width
     {
         get => _width;
@@ -32,6 +42,9 @@ public class VirtualLayerObject : MapObject
         }
     }
 
+    /// <summary>
+    /// Gets or sets the overlay height in tiles.
+    /// </summary>
     public ushort Height
     {
         get => _height;
@@ -43,6 +56,9 @@ public class VirtualLayerObject : MapObject
         }
     }
 
+    /// <summary>
+    /// Gets or sets the virtual-layer altitude.
+    /// </summary>
     public sbyte Z
     {
         get => _z;
@@ -56,6 +72,9 @@ public class VirtualLayerObject : MapObject
         }
     }
 
+    /// <summary>
+    /// Sets the tint color for the virtual-layer overlay.
+    /// </summary>
     public Vector4 Color
     {
         set
@@ -67,6 +86,9 @@ public class VirtualLayerObject : MapObject
         }
     }
 
+    /// <summary>
+    /// Sets the overlay alpha used by the renderer for this helper plane.
+    /// </summary>
     public float Alpha
     {
         set

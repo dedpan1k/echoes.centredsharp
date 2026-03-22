@@ -8,23 +8,37 @@ using static CentrED.LangEntry;
 
 namespace CentrED.Tools;
 
+/// <summary>
+/// Places land tiles, statics, or blueprints using the currently selected source and placement mode.
+/// </summary>
 public class DrawTool : BaseTool
 {
     private readonly TilesWindow _tilesWindow;
     private readonly BlueprintsWindow _blueprintsWindow;
     private HueTool _hueTool;
+
+    /// <summary>
+    /// Initializes the draw tool and caches its dependent windows.
+    /// </summary>
     public DrawTool()
     {
         _tilesWindow = UIManager.GetWindow<TilesWindow>();
         _blueprintsWindow = UIManager.GetWindow<BlueprintsWindow>();
     }
 
+    /// <summary>
+    /// Resolves tool dependencies that are created after construction.
+    /// </summary>
+    /// <param name="mapManager">The active map manager.</param>
     public override void PostConstruct(MapManager mapManager)
     {
         _hueTool = mapManager.Tools.OfType<HueTool>().First();
     }
 
+    /// <inheritdoc />
     public override string Name => LangManager.Get(DRAW_TOOL);
+
+    /// <inheritdoc />
     public override Keys Shortcut => Keys.F2;
 
     enum DrawSource
@@ -51,8 +65,14 @@ public class DrawTool : BaseTool
     private bool _tileSetSequential;
     private bool _snapToTerrain;
 
+    /// <summary>
+    /// Gets the active tile-set values exposed by the tiles window.
+    /// </summary>
     private List<ushort> _tileSetValues => _tilesWindow.ActiveTileSetValues;
 
+    /// <summary>
+    /// Draws the draw-tool configuration UI.
+    /// </summary>
     internal override void Draw()
     {
         ImGui.Text(LangManager.Get(SOURCE));
@@ -120,6 +140,10 @@ public class DrawTool : BaseTool
         ImGui.SetItemTooltip(LangManager.Get(EMPTY_TILE_ONLY_TOOLTIP));
     }
 
+    /// <summary>
+    /// Enables the virtual layer when fixed-Z placement is active.
+    /// </summary>
+    /// <param name="o">The hovered tile, if any.</param>
     public override void OnActivated(TileObject? o)
     {
         if (_drawMode == (int)DrawMode.FIXED_Z)
@@ -129,6 +153,10 @@ public class DrawTool : BaseTool
         }
     }
 
+    /// <summary>
+    /// Disables any draw-tool virtual-layer overlays when the tool is deactivated.
+    /// </summary>
+    /// <param name="o">The hovered tile, if any.</param>
     public override void OnDeactivated(TileObject? o)
     {
         base.OnDeactivated(o);
@@ -136,6 +164,10 @@ public class DrawTool : BaseTool
         MapManager.ShowVirtualLayer = false;
     }
 
+    /// <summary>
+    /// Applies a placement preview to the current target tile.
+    /// </summary>
+    /// <param name="o">The target tile.</param>
     protected override void GhostApply(TileObject? o)
     {
         o = TransformTarget(o);
@@ -195,7 +227,7 @@ public class DrawTool : BaseTool
         }
         else if (_tilesWindow.ObjectMode)
         {
-            //TODO: Should we pool ghost tiles to avoid allocation?
+            // Ghost statics are short-lived previews, so allocation is acceptable here for clarity.
             var newTile = new StaticTile
             (
                 ghostId,
@@ -214,6 +246,10 @@ public class DrawTool : BaseTool
         }
     }
 
+    /// <summary>
+    /// Clears any draw preview from the current target tile.
+    /// </summary>
+    /// <param name="o">The target tile.</param>
     protected override void GhostClear(TileObject? o)
     {
         o = TransformTarget(o);
@@ -228,6 +264,10 @@ public class DrawTool : BaseTool
         }
     }
 
+    /// <summary>
+    /// Commits the prepared draw operation to the client-side map state.
+    /// </summary>
+    /// <param name="o">The target tile.</param>
     protected override void InternalApply(TileObject? o)
     {
         o = TransformTarget(o);
@@ -262,12 +302,21 @@ public class DrawTool : BaseTool
         }
     }
 
+    /// <summary>
+    /// Switches the draw tool into fixed-Z mode using a captured altitude.
+    /// </summary>
+    /// <param name="z">The captured altitude.</param>
     public override void GrabZ(sbyte z)
     {
         _drawMode = (int)DrawMode.FIXED_Z;
         MapManager.VirtualLayerZ = z;
     }
 
+    /// <summary>
+    /// Normalizes the interaction target based on the current placement mode.
+    /// </summary>
+    /// <param name="o">The original hovered tile.</param>
+    /// <returns>The effective placement target.</returns>
     private TileObject? TransformTarget(TileObject? o)
     {
         if (o == null)

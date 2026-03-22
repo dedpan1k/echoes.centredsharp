@@ -3,8 +3,13 @@ using CentrED.Network;
 
 namespace CentrED.Server;
 
+/// <summary>
+/// Handles connection-level packets such as login, quit, and keep-alive traffic.
+/// </summary>
 public class ConnectionHandling
 {
+    // The connection packet family uses a one-byte subcommand identifier, so a
+    // fixed lookup table keeps dispatch predictable and allocation-free.
     private static PacketHandler<CEDServer>?[] Handlers { get; }
 
     static ConnectionHandling()
@@ -15,6 +20,11 @@ public class ConnectionHandling
         Handlers[0x05] = new PacketHandler<CEDServer>(0, OnQuitPacket);
     }
 
+    /// <summary>
+    /// Dispatches a connection-management packet to its registered sub-handler.
+    /// </summary>
+    /// <param name="reader">The packet payload reader positioned after the outer packet header.</param>
+    /// <param name="ns">The client session that sent the packet.</param>
     public static void OnConnectionHandlerPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnConnectionHandlerPacket");
@@ -23,6 +33,11 @@ public class ConnectionHandling
         packetHandler?.OnReceive(reader, ns);
     }
 
+    /// <summary>
+    /// Validates login credentials and sends the initial post-login synchronization packets.
+    /// </summary>
+    /// <param name="reader">The payload reader containing the username and password.</param>
+    /// <param name="ns">The client session requesting authentication.</param>
     private static void OnLoginRequestPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnLoginRequestPacket");
@@ -63,6 +78,11 @@ public class ConnectionHandling
         }
     }
 
+    /// <summary>
+    /// Acknowledges a client disconnect request and terminates the session.
+    /// </summary>
+    /// <param name="reader">The payload reader.</param>
+    /// <param name="ns">The client session requesting disconnect.</param>
     private static void OnQuitPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnQuitPacket");
@@ -70,6 +90,11 @@ public class ConnectionHandling
         ns.Disconnect();
     }
     
+    /// <summary>
+    /// Handles the protocol no-op packet used to keep a session alive.
+    /// </summary>
+    /// <param name="buffer">The payload reader.</param>
+    /// <param name="ns">The client session that sent the keep-alive packet.</param>
     public static void OnNoOpPacket(SpanReader buffer, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnNoOpPacket");

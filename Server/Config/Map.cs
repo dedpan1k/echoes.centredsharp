@@ -2,14 +2,40 @@
 
 namespace CentrED.Server.Config;
 
+/// <summary>
+/// Defines the file paths and dimensions for the map and statics data served by the server.
+/// </summary>
 public class Map
 {
+    /// <summary>
+    /// Gets or sets the map file path.
+    /// </summary>
     public string MapPath { get; set; } = "map0.mul";
+
+    /// <summary>
+    /// Gets or sets the staidx file path.
+    /// </summary>
     public string StaIdx { get; set; } = "staidx0.mul";
+
+    /// <summary>
+    /// Gets or sets the statics file path.
+    /// </summary>
     public string Statics { get; set; } = "statics0.mul";
+
+    /// <summary>
+    /// Gets or sets the map width in 8x8 blocks.
+    /// </summary>
     public ushort Width { get; set; } = 896;
+
+    /// <summary>
+    /// Gets or sets the map height in 8x8 blocks.
+    /// </summary>
     public ushort Height { get; set; } = 512;
 
+    /// <summary>
+    /// Writes the map configuration into the server XML format.
+    /// </summary>
+    /// <param name="writer">The XML writer that receives the map configuration.</param>
     internal void Write(XmlWriter writer)
     {
         writer.WriteStartElement("Map");
@@ -21,6 +47,11 @@ public class Map
         writer.WriteEndElement();
     }
 
+    /// <summary>
+    /// Reads the map configuration from the server XML format.
+    /// </summary>
+    /// <param name="reader">The XML reader positioned at the map payload.</param>
+    /// <returns>The deserialized map configuration.</returns>
     internal static Map Read(XmlReader reader)
     {
         var result = new Map();

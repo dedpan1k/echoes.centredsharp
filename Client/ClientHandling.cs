@@ -3,6 +3,9 @@ using CentrED.Network;
 
 namespace CentrED.Client;
 
+/// <summary>
+/// Handles client-facing collaboration packets such as presence, chat, position, and access changes.
+/// </summary>
 public static class ClientHandling
 {
     private static PacketHandler<CentrEDClient>?[] Handlers { get; }
@@ -20,12 +23,22 @@ public static class ClientHandling
         Handlers[0x08] = new PacketHandler<CentrEDClient>(0, OnPasswordChangeStatusPacket);
     }
 
+    /// <summary>
+    /// Dispatches an incoming client packet.
+    /// </summary>
+    /// <param name="reader">The packet reader positioned after the outer header.</param>
+    /// <param name="ns">The client network session.</param>
     public static void OnClientHandlerPacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         var packetHandler = Handlers[reader.ReadByte()];
         packetHandler?.OnReceive(reader, ns);
     }
 
+    /// <summary>
+    /// Adds a newly connected username to the local client list.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private static void OnClientConnectedPacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         var username = reader.ReadString();
@@ -38,6 +51,11 @@ public static class ClientHandling
             ns.Parent.OnClientConnected(username);
     }
 
+    /// <summary>
+    /// Removes a disconnected username from the local client list.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private static void OnClientDisconnectedPacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         var username = reader.ReadString();
@@ -46,6 +64,11 @@ public static class ClientHandling
             ns.Parent.OnClientDisconnected(username);
     }
 
+    /// <summary>
+    /// Replaces the local client list with the server snapshot.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private static void OnClientListPacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.Parent.Clients.Clear();
@@ -54,12 +77,17 @@ public static class ClientHandling
             ns.Parent.Clients.Add(reader.ReadString());
             if (ns.ProtocolVersion == ProtocolVersion.CentrEDPlus)
             {
-                reader.ReadByte();   //Access level
-                reader.ReadUInt32(); //login time since uptime
+                reader.ReadByte();
+                reader.ReadUInt32();
             }
         }
     }
 
+    /// <summary>
+    /// Updates the local camera position from the server.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private static void OnSetPosPacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         var x = reader.ReadUInt16();
@@ -67,6 +95,11 @@ public static class ClientHandling
         ns.Parent.SetPos(x, y);
     }
 
+    /// <summary>
+    /// Forwards a chat message into the client event surface.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private static void OnChatMessagePacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         var sender = reader.ReadString();
@@ -74,6 +107,11 @@ public static class ClientHandling
         ns.Parent.OnChatMessage(sender, message);
     }
 
+    /// <summary>
+    /// Updates the access level and editable-area restrictions for the active account.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private static void OnAccessChangedPacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         var accessLevel = (AccessLevel)reader.ReadByte();
@@ -90,6 +128,11 @@ public static class ClientHandling
         }
     }
 
+    /// <summary>
+    /// Logs the result of a password change request.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private static void OnPasswordChangeStatusPacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         var status = (PasswordChangeStatus)reader.ReadByte();
@@ -111,6 +154,11 @@ public static class ClientHandling
         ;
     }
 
+    /// <summary>
+    /// Reads account restriction rectangles from a packet.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <returns>The list of restriction rectangles.</returns>
     public static List<RectU16> ReadAccountRestrictions(SpanReader reader)
     {
         var rectCount = reader.ReadUInt16();

@@ -3,13 +3,39 @@ using CentrED.Network;
 
 namespace CentrED.Client;
 
+/// <summary>
+/// Represents a callback raised when a user is deleted through the administrative API.
+/// </summary>
+/// <param name="username">The deleted username.</param>
 public static class AdminHandling
 {
+    /// <summary>
+    /// Represents a callback raised when a user is modified through the administrative API.
+    /// </summary>
+    /// <param name="username">The affected username.</param>
+    /// <param name="status">The modification status.</param>
     public delegate void UserDeleted(string username);
+
+    /// <summary>
+    /// Represents a callback raised when a region is deleted through the administrative API.
+    /// </summary>
+    /// <param name="username">The affected username.</param>
     public delegate void UserModified(string username, ModifyUserStatus status);
+
+    /// <summary>
+    /// Represents a callback raised when a region is deleted through the administrative API.
+    /// </summary>
+    /// <param name="name">The deleted region name.</param>
     public delegate void RegionDeleted(string name);
+
+    /// <summary>
+    /// Represents a callback raised when a region is modified through the administrative API.
+    /// </summary>
+    /// <param name="name">The affected region name.</param>
+    /// <param name="status">The modification status.</param>
     public delegate void RegionModified(string name, ModifyRegionStatus status);
     
+    // Administrative packets are routed by one-byte subcommand just like the server side.
     private static PacketHandler<CentrEDClient>?[] Handlers { get; }
 
     static AdminHandling()
@@ -24,6 +50,11 @@ public static class AdminHandling
         Handlers[0x0A] = new PacketHandler<CentrEDClient>(0, OnListRegionsResponsePacket);
     }
 
+    /// <summary>
+    /// Dispatches an incoming administrative packet.
+    /// </summary>
+    /// <param name="reader">The packet reader positioned after the outer header.</param>
+    /// <param name="ns">The client network session.</param>
     public static void OnAdminHandlerPacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.LogDebug("Client OnConnectionHandlerPacket");
@@ -32,6 +63,11 @@ public static class AdminHandling
         packetHandler?.OnReceive(reader, ns);
     }
     
+    /// <summary>
+    /// Updates the cached user list after an add or modify response.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private static void OnModifyUserResponsePacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.LogDebug("Client OnModifyUserResponsePacket");
@@ -61,6 +97,11 @@ public static class AdminHandling
         ns.Parent.OnUserModified(username, status);
     }
     
+    /// <summary>
+    /// Removes a cached user after a delete response.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private static void OnDeleteUserResponsePacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.LogDebug("Client OnDeleteUserResponsePacket");
@@ -73,6 +114,11 @@ public static class AdminHandling
         ns.Parent.OnUserDeleted(username);
     }
     
+    /// <summary>
+    /// Replaces the cached user list with the server snapshot.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private static void OnListUsersResponsePacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.LogDebug("Client OnListUsersResponsePacket");
@@ -93,6 +139,11 @@ public static class AdminHandling
         }
     }
     
+    /// <summary>
+    /// Updates the cached region list after an add or modify response.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private static void OnModifyRegionResponsePacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.LogDebug("Client OnModifyRegionResponsePacket");
@@ -118,6 +169,11 @@ public static class AdminHandling
         ns.Parent.OnRegionModified(regionName, status);
     }
     
+    /// <summary>
+    /// Removes a cached region after a delete response.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private static void OnDeleteRegionResponsePacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.LogDebug("Client OnDeleteRegionResponsePacket");
@@ -135,6 +191,11 @@ public static class AdminHandling
         ns.Parent.OnRegionDeleted(regionName);
     }
     
+    /// <summary>
+    /// Replaces the cached region list with the server snapshot.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private static void OnListRegionsResponsePacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.LogDebug("Client OnListRegionsResponsePacket");

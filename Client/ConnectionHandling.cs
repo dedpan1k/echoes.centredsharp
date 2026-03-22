@@ -3,8 +3,12 @@ using CentrED.Network;
 
 namespace CentrED.Client;
 
+/// <summary>
+/// Handles connection-level packets such as protocol negotiation, login, server state, and quit acknowledgements.
+/// </summary>
 public static class ConnectionHandling
 {
+    // Connection packets use one-byte subcommand identifiers, so a lookup table keeps dispatch simple.
     private static PacketHandler<CentrEDClient>?[] Handlers { get; }
 
     static ConnectionHandling()
@@ -17,6 +21,11 @@ public static class ConnectionHandling
         Handlers[0x05] = new PacketHandler<CentrEDClient>(0, OnQuitAckPacket);
     }
 
+    /// <summary>
+    /// Dispatches an incoming connection-management packet.
+    /// </summary>
+    /// <param name="reader">The packet reader positioned after the outer header.</param>
+    /// <param name="ns">The client network session.</param>
     public static void OnConnectionHandlerPacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.LogDebug("Client OnConnectionHandlerPacket");
@@ -25,6 +34,11 @@ public static class ConnectionHandling
         packetHandler?.OnReceive(reader, ns);
     }
 
+    /// <summary>
+    /// Negotiates the protocol version advertised by the server.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private static void OnProtocolVersionPacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.LogDebug("Client OnProtocolVersionPacket");
@@ -37,6 +51,11 @@ public static class ConnectionHandling
         };
     }
 
+    /// <summary>
+    /// Processes the login response and initializes the landscape on success.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private static void OnLoginResponsePacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.LogDebug("Client OnLoginResponsePacket");
@@ -49,13 +68,13 @@ public static class ConnectionHandling
                 ns.Parent.AccessLevel = (AccessLevel)reader.ReadByte();
                 if (ns.ProtocolVersion == ProtocolVersion.CentrEDPlus)
                 {
-                    reader.ReadUInt32(); //server uptime
+                    reader.ReadUInt32(); // server uptime
                 }
                 var width = reader.ReadUInt16();
                 var height = reader.ReadUInt16();
                 if (ns.ProtocolVersion == ProtocolVersion.CentrEDPlus)
                 {
-                    reader.ReadUInt32(); //flags
+                    reader.ReadUInt32(); // flags
                 }
 
                 ns.Parent.InitLandscape(width, height);
@@ -91,6 +110,11 @@ public static class ConnectionHandling
         }
     }
 
+    /// <summary>
+    /// Updates the cached coarse-grained server state.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private static void OnServerStatePacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.Parent.ServerState = (ServerState)reader.ReadByte();
@@ -100,6 +124,11 @@ public static class ConnectionHandling
         }
     }
     
+    /// <summary>
+    /// Handles the server's quit acknowledgement.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private static void OnQuitAckPacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.LogDebug("Client OnQuitAckPacket");

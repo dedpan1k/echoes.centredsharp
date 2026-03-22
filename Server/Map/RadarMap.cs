@@ -4,8 +4,19 @@ using CentrED.Utility;
 
 namespace CentrED.Server.Map;
 
+/// <summary>
+/// Maintains the server-side radar image and serializes radar updates for clients.
+/// </summary>
 public class RadarMap
 {
+    /// <summary>
+    /// Builds the initial radar image from the landscape and radar color table.
+    /// </summary>
+    /// <param name="landscape">The landscape that owns the radar data.</param>
+    /// <param name="mapReader">The reader used to sample land tiles.</param>
+    /// <param name="staidxReader">The reader used to locate static blocks.</param>
+    /// <param name="staticsReader">The reader used to sample static tiles.</param>
+    /// <param name="radarcolPath">The path to the radar color lookup table.</param>
     public RadarMap
     (
         ServerLandscape landscape,
@@ -15,10 +26,8 @@ public class RadarMap
         string radarcolPath
     )
     {
-        using var radarcol = File.Open(radarcolPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        _radarColors = new ushort[radarcol.Length / sizeof(ushort)];
-        var buffer = new byte[radarcol.Length];
-        radarcol.Read(buffer, 0, (int)radarcol.Length);
+        var buffer = File.ReadAllBytes(radarcolPath);
+        _radarColors = new ushort[buffer.Length / sizeof(ushort)];
         Buffer.BlockCopy(buffer, 0, _radarColors, 0, buffer.Length);
 
         _width = landscape.Width;
@@ -62,6 +71,11 @@ public class RadarMap
     private ushort[] _radarMap;
     private List<Packet>? _packets;
 
+    /// <summary>
+    /// Dispatches radar subcommands for checksum and full radar-map requests.
+    /// </summary>
+    /// <param name="reader">The payload reader containing the radar subcommand.</param>
+    /// <param name="ns">The client session requesting radar data.</param>
     internal void OnRadarHandlingPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("OnRadarHandlingPacket");
@@ -76,6 +90,13 @@ public class RadarMap
         }
     }
 
+    /// <summary>
+    /// Updates one radar pixel and either batches or broadcasts the corresponding packet.
+    /// </summary>
+    /// <param name="ns">The client session that initiated the change.</param>
+    /// <param name="x">The radar-block X coordinate.</param>
+    /// <param name="y">The radar-block Y coordinate.</param>
+    /// <param name="tileId">The tile identifier used to resolve the radar color.</param>
     public void Update(NetState<CEDServer> ns, ushort x, ushort y, ushort tileId)
     {
         var block = x * _height + y;
@@ -95,6 +116,9 @@ public class RadarMap
         }
     }
 
+    /// <summary>
+    /// Begins batching radar updates for a large multi-block edit.
+    /// </summary>
     public void BeginUpdate()
     {
         if (_packets != null)
@@ -103,11 +127,16 @@ public class RadarMap
         _packets = new List<Packet>();
     }
 
+    /// <summary>
+    /// Ends a batched radar update and sends either individual updates or a full radar image refresh.
+    /// </summary>
+    /// <param name="ns">The client session that initiated the batched update.</param>
     public void EndUpdate(NetState<CEDServer> ns)
     {
         if (_packets == null)
             throw new InvalidOperationException("RadarMap update isn't in progress");
 
+        // Large edit bursts are cheaper to resend as a complete radar image than as thousands of point updates.
         if (_packets.Count > 1024)
         {
             ns.SendCompressed(new RadarMapPacket(_radarMap));
@@ -123,8 +152,15 @@ public class RadarMap
     }
 }
 
+/// <summary>
+/// Sends a checksum for the current radar image so clients can detect whether they need a refresh.
+/// </summary>
 public class RadarChecksumPacket : Packet
 {
+    /// <summary>
+    /// Initializes a radar checksum packet.
+    /// </summary>
+    /// <param name="radarMap">The radar image to checksum.</param>
     public RadarChecksumPacket(ushort[] radarMap) : base(0x0D, 0)
     {
         Writer.Write((byte)0x01);
@@ -132,8 +168,15 @@ public class RadarChecksumPacket : Packet
     }
 }
 
+/// <summary>
+/// Sends the full radar image to a client.
+/// </summary>
 public class RadarMapPacket : Packet
 {
+    /// <summary>
+    /// Initializes a full radar-map packet.
+    /// </summary>
+    /// <param name="radarMap">The radar image to serialize.</param>
     public RadarMapPacket(ushort[] radarMap) : base(0x0D, 0)
     {
         Writer.Write((byte)0x02);
@@ -143,8 +186,17 @@ public class RadarMapPacket : Packet
     }
 }
 
+/// <summary>
+/// Sends a single radar pixel update.
+/// </summary>
 public class UpdateRadarPacket : Packet
 {
+    /// <summary>
+    /// Initializes a radar update packet.
+    /// </summary>
+    /// <param name="x">The radar-block X coordinate.</param>
+    /// <param name="y">The radar-block Y coordinate.</param>
+    /// <param name="color">The new radar color value.</param>
     public UpdateRadarPacket(ushort x, ushort y, ushort color) : base(0x0D, 0)
     {
         Writer.Write((byte)0x03);

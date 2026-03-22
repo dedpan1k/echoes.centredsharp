@@ -2,13 +2,35 @@
 
 namespace CentrED.Server.Config;
 
+/// <summary>
+/// Configures automatic backup rotation for the server map files.
+/// </summary>
 public class Autobackup
 {
+    /// <summary>
+    /// Gets or sets a value indicating whether automatic backups are enabled.
+    /// </summary>
     public bool Enabled { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets the directory used to store rotated backups.
+    /// </summary>
     public string Directory { get; set; } = "backups";
+
+    /// <summary>
+    /// Gets or sets the number of rotated backups to keep.
+    /// </summary>
     public uint MaxBackups { get; set; } = 7;
+
+    /// <summary>
+    /// Gets or sets the interval between automatic backups.
+    /// </summary>
     public TimeSpan Interval { get; set; } = TimeSpan.FromHours(12);
     
+    /// <summary>
+    /// Writes the autobackup settings into the server XML format.
+    /// </summary>
+    /// <param name="writer">The XML writer that receives the autobackup payload.</param>
     internal void Write(XmlWriter writer)
     {
         writer.WriteStartElement("AutoBackup");
@@ -19,6 +41,11 @@ public class Autobackup
         writer.WriteEndElement();
     }
 
+    /// <summary>
+    /// Reads the autobackup settings from the server XML format.
+    /// </summary>
+    /// <param name="reader">The XML reader positioned at the autobackup payload.</param>
+    /// <returns>The deserialized autobackup settings.</returns>
     internal static Autobackup Read(XmlReader reader)
     {
         var result = new Autobackup();
