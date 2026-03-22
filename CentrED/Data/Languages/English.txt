@@ -139,6 +139,7 @@ UNCHECK_ALL=Uncheck all
 INCLUSIVE=Inclusive
 MATCH_ALL=Match all
 TOOLBOX_WINDOW=Toolbox
+TOOLBOX_HORIZONTAL_MODE=Horizontal layout
 CHANCE=Chance
 DRAW_TOOL=Draw
 SOURCE=Source

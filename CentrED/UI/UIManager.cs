@@ -376,10 +376,11 @@ public class UIManager
             Config.Instance.Layout = new Dictionary<string, WindowState>();
             _resetLayout = false;
         }
+        DrawMainMenu();
+        DrawApplicationToolbar();
+        DrawStatusBar();
         ImGui.DockSpaceOverViewport(ImGuiDockNodeFlags.PassthruCentralNode | ImGuiDockNodeFlags.NoDockingOverCentralNode);
         DrawContextMenu();
-        DrawMainMenu();
-        DrawStatusBar();
         foreach (var window in AllWindows.Values)
         { 
             window.Draw();   
@@ -520,6 +521,14 @@ public class UIManager
             CEDGame.UIManager.AddCurrentWindowRect();
             ImGui.EndMainMenuBar();
         }
+    }
+
+    /// <summary>
+    /// Draws the fixed application toolbar beneath the main menu when the compact navbar mode is enabled.
+    /// </summary>
+    private void DrawApplicationToolbar()
+    {
+        GetWindow<ToolboxWindow>().DrawApplicationToolbar();
     }
 
     /// <summary>

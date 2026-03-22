@@ -139,6 +139,7 @@ UNCHECK_ALL=Odznaczy wszystkie
 INCLUSIVE=Inkluzywny
 MATCH_ALL=Dopasuj wszystkie
 TOOLBOX_WINDOW=Przybornik
+TOOLBOX_HORIZONTAL_MODE=Układ poziomy
 CHANCE=Szansa
 DRAW_TOOL=Rysuj
 SOURCE=Źródło

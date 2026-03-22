@@ -138,6 +138,16 @@ public class ConfigRoot
     /// Gets or sets the image overlay settings.
     /// </summary>
     public ImageOverlaySettings ImageOverlay = new();
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the toolbox uses the horizontal layout.
+    /// </summary>
+    public bool HorizontalToolbox;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the horizontal toolbox parameter popout is open.
+    /// </summary>
+    public bool HorizontalToolboxParametersOpen = true;
 }
 
 /// <summary>

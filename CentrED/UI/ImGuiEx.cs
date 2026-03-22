@@ -262,9 +262,41 @@ public static class ImGuiEx
     }
 
     /// <summary>
+    /// Creates an interactive top toolbar as a viewport side bar directly beneath the main menu.
+    /// </summary>
+    /// <param name="height">Requested toolbar height.</param>
+    public static bool BeginToolbarBar(float height)
+    {
+        var style = ImGui.GetStyle();
+
+        ImGuiP.ImGuiNextWindowData().MenuBarOffsetMinVal = new Vector2
+            (style.DisplaySafeAreaPadding.X, Math.Max(style.DisplaySafeAreaPadding.Y - style.FramePadding.Y, 0));
+        var flags = ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoDocking | ImGuiWindowFlags.HorizontalScrollbar;
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowMinSize, new Vector2(0, height));
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
+        var isOpen = ImGuiP.BeginViewportSideBar("##ToolbarBar", ImGui.GetMainViewport(), ImGuiDir.Up, height, flags);
+        ImGuiP.ImGuiNextWindowData().MenuBarOffsetMinVal = Vector2.Zero;
+        if (!isOpen)
+        {
+            EndToolbarBar();
+            return false;
+        }
+        return isOpen;
+    }
+
+    /// <summary>
     /// Ends a status bar begun by <see cref="BeginStatusBar"/> and restores the pushed style.
     /// </summary>
     public static void EndStatusBar()
+    {
+        ImGui.End();
+        ImGui.PopStyleVar(2);
+    }
+
+    /// <summary>
+    /// Ends a toolbar bar begun by <see cref="BeginToolbarBar"/> and restores the pushed style.
+    /// </summary>
+    public static void EndToolbarBar()
     {
         ImGui.End();
         ImGui.PopStyleVar(2);

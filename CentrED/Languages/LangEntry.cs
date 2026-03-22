@@ -143,6 +143,7 @@ public enum LangEntry
     INCLUSIVE,
     MATCH_ALL,
     TOOLBOX_WINDOW,
+    TOOLBOX_HORIZONTAL_MODE,
     CHANCE,
     DRAW_TOOL,
     SOURCE,

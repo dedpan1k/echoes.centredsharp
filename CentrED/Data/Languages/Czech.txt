@@ -139,6 +139,7 @@ UNCHECK_ALL=Odznačit vše
 INCLUSIVE=Zahrnující
 MATCH_ALL=Odpovídat všem
 TOOLBOX_WINDOW=Nástrojová lišta
+TOOLBOX_HORIZONTAL_MODE=Vodorovné rozložení
 CHANCE=Šance
 DRAW_TOOL=Kreslit
 SOURCE=Zdroj
