@@ -28,6 +28,7 @@ public class ToolboxWindow : Window
     private Vector2 _activeToolTabMin;
     private Vector2 _activeToolTabMax;
     private Tool? _lastToolbarTool;
+    private bool _toolbarStateInitialized;
     private bool _scrollActiveToolIntoView;
 
     /// <summary>
@@ -88,7 +89,14 @@ public class ToolboxWindow : Window
     {
         if (!Config.Instance.HorizontalToolbox)
         {
+            _toolbarStateInitialized = false;
             return;
+        }
+
+        if (!_toolbarStateInitialized)
+        {
+            Config.Instance.HorizontalToolboxParametersOpen = false;
+            _toolbarStateInitialized = true;
         }
 
         if (_lastToolbarTool != CEDGame.MapManager.ActiveTool)
@@ -137,7 +145,7 @@ public class ToolboxWindow : Window
         var tools = CEDGame.MapManager.Tools;
         var activeTool = CEDGame.MapManager.ActiveTool;
 
-        ImGui.SetCursorPosY(0f);
+        ImGui.SetCursorPosY(3f);
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, SlimNavbarPadding);
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, SlimNavbarSpacing);
 
@@ -171,7 +179,6 @@ public class ToolboxWindow : Window
                     {
                         Config.Instance.HorizontalToolboxParametersOpen = !Config.Instance.HorizontalToolboxParametersOpen;
                     }
-                    Config.Save();
                 }
                 else if (!isSelected)
                 {
@@ -229,7 +236,6 @@ public class ToolboxWindow : Window
             if (ImGui.SmallButton(closeLabel))
             {
                 Config.Instance.HorizontalToolboxParametersOpen = false;
-                Config.Save();
             }
             ImGui.Dummy(new Vector2(0f, 2f));
             ImGui.Separator();

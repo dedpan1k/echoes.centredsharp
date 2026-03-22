@@ -632,7 +632,6 @@ public class MapManager
                                 else
                                 {
                                     Config.Instance.HorizontalToolboxParametersOpen = !Config.Instance.HorizontalToolboxParametersOpen;
-                                    Config.Save();
                                 }
                             }
                             else if (tool == ActiveTool)

@@ -147,7 +147,7 @@ public class ConfigRoot
     /// <summary>
     /// Gets or sets a value indicating whether the horizontal toolbox parameter popout is open.
     /// </summary>
-    public bool HorizontalToolboxParametersOpen = true;
+    public bool HorizontalToolboxParametersOpen;
 }
 
 /// <summary>
