@@ -8,16 +8,38 @@ using static CentrED.Constants;
 
 namespace CentrED.Map;
 
+/// <summary>
+/// Wraps a static tile with render geometry, hue state, and ghost/highlight behavior.
+/// </summary>
 public class StaticObject : TileObject, IComparable<StaticObject>
 {
+    /// <summary>
+    /// Gets the strongly typed static tile represented by this object.
+    /// </summary>
     public StaticTile StaticTile;
+
+    /// <summary>
+    /// Gets a value indicating whether the static uses animated art.
+    /// </summary>
     public bool IsAnimated;
+
+    /// <summary>
+    /// Gets a value indicating whether the static acts as a light source.
+    /// </summary>
     public bool IsLight;
+
+    /// <summary>
+    /// Gets the real art bounds used for hit testing and lighting behavior.
+    /// </summary>
     public Rectangle RealBounds;
 
+    /// <summary>
+    /// Initializes a renderable static object for the supplied tile.
+    /// </summary>
+    /// <param name="tile">The static tile to wrap.</param>
     public StaticObject(StaticTile tile)
     {
-        //Static are constructed from two rectangles
+        // Statics render as two quads so the isometric billboard keeps the expected silhouette.
         Vertices = new MapVertex[8];
         Tile = StaticTile = tile;
         
@@ -35,17 +57,27 @@ public class StaticObject : TileObject, IComparable<StaticObject>
         IsLight = tiledata.IsLight;
     }
 
+    /// <summary>
+    /// Refreshes the rendered position from the current tile state.
+    /// </summary>
     public void Update()
     {
         //Only UpdatePos for now, mainly for FlatView
         UpdatePos(Tile.X, Tile.Y, Tile.Z);
     }
 
+    /// <summary>
+    /// Refreshes the rendered art for the current tile identifier.
+    /// </summary>
     public void UpdateId()
     {
         UpdateId(Tile.Id);
     }
     
+    /// <summary>
+    /// Updates the rendered art and UV layout for a new static identifier.
+    /// </summary>
+    /// <param name="newId">The static tile identifier to render.</param>
     public void UpdateId(ushort newId)
     {
         var mapManager = CEDGame.MapManager;
@@ -84,6 +116,9 @@ public class StaticObject : TileObject, IComparable<StaticObject>
         IsAnimated = mapManager.UoFileManager.TileData.StaticData[newId].IsAnimated;
     }
 
+    /// <summary>
+    /// Updates the depth bias encoded into each vertex.
+    /// </summary>
     public void UpdateDepthOffset()
     {
         var depthOffset = StaticTile.CellIndex * 0.00001f;
@@ -93,6 +128,12 @@ public class StaticObject : TileObject, IComparable<StaticObject>
         }
     }
     
+    /// <summary>
+    /// Updates the isometric billboard position for the supplied tile coordinates.
+    /// </summary>
+    /// <param name="newX">The destination tile X coordinate.</param>
+    /// <param name="newY">The destination tile Y coordinate.</param>
+    /// <param name="newZ">The destination tile Z coordinate.</param>
     public void UpdatePos(ushort newX, ushort newY, sbyte newZ)
     {
         var posX = newX * TILE_SIZE;
@@ -115,6 +156,10 @@ public class StaticObject : TileObject, IComparable<StaticObject>
         Vertices[7].Position = new Vector3(posX, posY - projectedWidth, posZ - halfWidth);
     }
 
+    /// <summary>
+    /// Applies a hue vector to the rendered static.
+    /// </summary>
+    /// <param name="newHue">The hue identifier to encode.</param>
     public void UpdateHue(ushort newHue)
     {
         var hueVec = HuesManager.Instance.GetHueVector(Tile.Id, newHue);
@@ -124,6 +169,9 @@ public class StaticObject : TileObject, IComparable<StaticObject>
         }
     }
 
+    /// <summary>
+    /// Restores the static after preview or highlight state has been applied.
+    /// </summary>
     public override void Reset()
     {
         base.Reset();
@@ -134,6 +182,9 @@ public class StaticObject : TileObject, IComparable<StaticObject>
     
     private int _ghostHue = -1;
     
+    /// <summary>
+    /// Gets or sets the preview hue used by ghost rendering.
+    /// </summary>
     public int GhostHue
     {
         get => _ghostHue;
@@ -153,6 +204,9 @@ public class StaticObject : TileObject, IComparable<StaticObject>
     
     private float HighlightAlpha => Config.Instance.ObjectBrightHighlight ? HIGH_ALPHA_VALUE : LOW_ALPHA_VALUE;
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the static is currently highlighted in the editor.
+    /// </summary>
     public bool Highlighted
     {
         get;
@@ -167,6 +221,11 @@ public class StaticObject : TileObject, IComparable<StaticObject>
         }
     }
 
+    /// <summary>
+    /// Compares statics by draw priority altitude.
+    /// </summary>
+    /// <param name="other">The other static object.</param>
+    /// <returns>A comparison result suitable for sorting.</returns>
     public int CompareTo(StaticObject? other)
     {
         if (ReferenceEquals(this, other))

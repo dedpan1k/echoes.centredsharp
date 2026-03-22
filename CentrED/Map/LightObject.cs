@@ -8,16 +8,26 @@ using static CentrED.HuesManager.HueMode;
 
 namespace CentrED.Map;
 
+/// <summary>
+/// Represents the rendered halo or sprite used for a light-emitting static tile.
+/// </summary>
 public class LightObject : MapObject
 {
     private StaticObject so;
     
+    /// <summary>
+    /// Initializes a light overlay for the supplied static object.
+    /// </summary>
+    /// <param name="so">The static object that owns the light source.</param>
     public LightObject(StaticObject so)
     {
         this.so = so;
         Update();
     }
 
+    /// <summary>
+    /// Rebuilds the light sprite based on the owning static tile and current lighting settings.
+    /// </summary>
     public void Update()
     {
         Valid = false;
@@ -28,7 +38,8 @@ public class LightObject : MapObject
 
         var tiles = CEDGame.MapManager.StaticsManager.Get(testX, testY);
 
-        if (tiles != null && tiles.Count > 0) // This should work for all tiles to be initialized
+        // Skip drawing when an opaque static sits above the light source in the same stack.
+        if (tiles != null && tiles.Count > 0)
         {
             foreach (var testTile in tiles)
             {
@@ -113,7 +124,7 @@ public class LightObject : MapObject
             Vertices[i].Hue = hue;
         }
 
-        //Don't use so.TextureBounds as it can have different graphic ie. invisible light source
+        // Use the source art bounds because invisible light sources may swap to a debug-only proxy sprite.
         var tileSpriteInfo = CEDGame.MapManager.Arts.GetArt(so.StaticTile.Id); 
         var posX = staticTile.X * TILE_SIZE - tileSpriteInfo.UV.Height / 4f;
         var posY = staticTile.Y * TILE_SIZE - tileSpriteInfo.UV.Height / 4f;

@@ -4,8 +4,13 @@ using CentrED.Server.Config;
 
 namespace CentrED.Server;
 
+/// <summary>
+/// Handles administrative packets that manage users, regions, persistence, and server runtime flags.
+/// </summary>
 public class AdminHandling
 {
+    // Admin packets also use one-byte subcommand identifiers, but access checks are
+    // layered on top because some operations are developer-only while others require administrator rights.
     private static PacketHandler<CEDServer>?[] Handlers { get; }
 
     static AdminHandling()
@@ -23,6 +28,11 @@ public class AdminHandling
         Handlers[0x10] = new PacketHandler<CEDServer>(0, OnServerCpuIdlePacket);
     }
 
+    /// <summary>
+    /// Dispatches an administrative packet after validating the sender's access level.
+    /// </summary>
+    /// <param name="reader">The packet payload reader positioned after the outer packet header.</param>
+    /// <param name="ns">The client session that sent the packet.</param>
     public static void OnAdminHandlerPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnAdminHandlerPacket");
@@ -35,6 +45,11 @@ public class AdminHandling
         packetHandler?.OnReceive(reader, ns);
     }
 
+    /// <summary>
+    /// Flushes the landscape and configuration to disk immediately.
+    /// </summary>
+    /// <param name="reader">The payload reader.</param>
+    /// <param name="ns">The client session requesting the flush.</param>
     private static void OnFlushPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnFlushPacket");
@@ -42,12 +57,22 @@ public class AdminHandling
         ns.Parent.Config.Flush();
     }
 
+    /// <summary>
+    /// Requests a graceful server shutdown.
+    /// </summary>
+    /// <param name="reader">The payload reader.</param>
+    /// <param name="ns">The client session requesting shutdown.</param>
     private static void OnShutdownPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnShutdownPacket");
         ns.Parent.Quit = true;
     }
 
+    /// <summary>
+    /// Adds a new account or updates an existing account definition.
+    /// </summary>
+    /// <param name="reader">The payload reader containing account data and region assignments.</param>
+    /// <param name="ns">The client session performing the modification.</param>
     private static void OnModifyUserPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnModifyUserPacket");
@@ -73,6 +98,7 @@ public class AdminHandling
 
             ns.Parent.Config.Invalidate();
 
+            // Existing clients need to refresh their access state if their account changed.
             ns.Parent.GetClient(account.Name)?.Send(new AccessChangedPacket(ns));
             ns.Send(new ModifyUserResponsePacket(ModifyUserStatus.Modified, account));
         }
@@ -98,6 +124,11 @@ public class AdminHandling
         }
     }
 
+    /// <summary>
+    /// Deletes an account unless it belongs to the requesting administrator.
+    /// </summary>
+    /// <param name="reader">The payload reader containing the username to remove.</param>
+    /// <param name="ns">The client session performing the deletion.</param>
     private static void OnDeleteUserPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnDeleteUserPacket");
@@ -116,12 +147,22 @@ public class AdminHandling
         }
     }
 
+    /// <summary>
+    /// Sends the full configured user list back to the requesting administrator.
+    /// </summary>
+    /// <param name="reader">The payload reader.</param>
+    /// <param name="ns">The client session requesting the list.</param>
     private static void OnListUsersPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnListUsersPacket");
         ns.SendCompressed(new UserListPacket(ns));
     }
 
+    /// <summary>
+    /// Adds or replaces a region definition and refreshes affected client permissions.
+    /// </summary>
+    /// <param name="reader">The payload reader containing region geometry.</param>
+    /// <param name="ns">The client session performing the modification.</param>
     private static void OnModifyRegionPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnModifyRegionPacket");
@@ -157,6 +198,8 @@ public class AdminHandling
 
         if (status == ModifyRegionStatus.Modified)
         {
+            // Region edits can immediately change who may edit an area, so any client
+            // assigned to the region receives refreshed restrictions.
             foreach (var netState in ns.Parent.Clients)
             {
                 var account = ns.Parent.GetAccount(netState.Username)!;
@@ -169,6 +212,11 @@ public class AdminHandling
         }
     }
 
+    /// <summary>
+    /// Deletes a region and removes it from every account assignment.
+    /// </summary>
+    /// <param name="reader">The payload reader containing the region name.</param>
+    /// <param name="ns">The client session performing the deletion.</param>
     private static void OnDeleteRegionPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnDeleteRegionPacket");
@@ -189,6 +237,11 @@ public class AdminHandling
         AdminBroadcast(ns, AccessLevel.Administrator, new DeleteRegionResponsePacket(status, regionName));
     }
 
+    /// <summary>
+    /// Enables or disables main-loop idle sleeping for diagnostics or performance testing.
+    /// </summary>
+    /// <param name="reader">The payload reader containing the requested idle flag.</param>
+    /// <param name="ns">The client session requesting the change.</param>
     private static void OnServerCpuIdlePacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnServerTurboPacket");
@@ -196,12 +249,23 @@ public class AdminHandling
         ns.Parent.SetCPUIdle(ns, enabled);
     }
 
+    /// <summary>
+    /// Sends the full configured region list back to the requesting administrator.
+    /// </summary>
+    /// <param name="reader">The payload reader.</param>
+    /// <param name="ns">The client session requesting the list.</param>
     private static void OnListRegionsPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnListRegionsPacket");
         ns.SendCompressed(new RegionListPacket(ns));
     }
 
+    /// <summary>
+    /// Broadcasts an administrative packet to connected clients that meet the requested access level.
+    /// </summary>
+    /// <param name="ns">The initiating client session.</param>
+    /// <param name="accessLevel">The minimum access level required to receive the packet.</param>
+    /// <param name="packet">The packet to send.</param>
     private static void AdminBroadcast(NetState<CEDServer> ns, AccessLevel accessLevel, Packet packet)
     {
         ns.LogDebug("AdminBroadcast");

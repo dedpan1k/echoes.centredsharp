@@ -622,8 +622,22 @@ public class MapManager
                     {
                         if (_keymap.IsKeyPressed(tool.Shortcut))
                         {
-                            if (tool == ActiveTool)
+                            if (Config.Instance.HorizontalToolbox)
+                            {
+                                Tools.ForEach(t => t.ClosePopup());
+                                if (tool != ActiveTool)
+                                {
+                                    ActiveTool = tool;
+                                }
+                                else
+                                {
+                                    Config.Instance.HorizontalToolboxParametersOpen = !Config.Instance.HorizontalToolboxParametersOpen;
+                                }
+                            }
+                            else if (tool == ActiveTool)
+                            {
                                 tool.OpenPopup();
+                            }
                             else
                             {
                                 tool.ClosePopup();

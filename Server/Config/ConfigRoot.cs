@@ -2,31 +2,93 @@
 
 namespace CentrED.Server.Config;
 
+/// <summary>
+/// Represents the persisted server configuration, including network settings, file paths, accounts, and regions.
+/// </summary>
 public class ConfigRoot
 {
+    /// <summary>
+    /// Gets the default configuration path derived from the current executable name.
+    /// </summary>
     private static string DefaultPath =>
         Path.GetFullPath(Path.ChangeExtension(Application.GetCurrentExecutable(), ".xml"));
 
+    /// <summary>
+    /// Defines the current configuration schema version.
+    /// </summary>
     public const int CurrentVersion = 5;
+
+    /// <summary>
+    /// Gets or sets the persisted configuration schema version.
+    /// </summary>
     public int Version { get; set; } = CurrentVersion;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether CentrED+ protocol extensions are enabled.
+    /// </summary>
     public bool CentrEdPlus { get; set; }
+
+    /// <summary>
+    /// Gets or sets the TCP port used by the server listener.
+    /// </summary>
     public int Port { get; set; } = 2597;
+
+    /// <summary>
+    /// Gets or sets the map-file configuration.
+    /// </summary>
     public Map Map { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the tiledata file path.
+    /// </summary>
     public string Tiledata { get; set; } = "tiledata.mul";
+
+    /// <summary>
+    /// Gets or sets the radar color lookup file path.
+    /// </summary>
     public string Radarcol { get; set; } = "radarcol.mul";
+
+    /// <summary>
+    /// Gets or sets the hue table file path.
+    /// </summary>
     public string Hues { get; set; } = "hues.mul";
+
+    /// <summary>
+    /// Gets or sets the configured user accounts.
+    /// </summary>
     public List<Account> Accounts { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the configured editable regions.
+    /// </summary>
     public List<Region> Regions { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the automatic-backup configuration.
+    /// </summary>
     public Autobackup AutoBackup { get; set; } = new();
     
+    /// <summary>
+    /// Gets or sets a value indicating whether the configuration has unsaved changes.
+    /// </summary>
     public bool Changed { get; set; }
+
+    /// <summary>
+    /// Gets or sets the path of the configuration file currently being edited.
+    /// </summary>
     public string FilePath { get; set; } = DefaultPath;
 
+    /// <summary>
+    /// Marks the configuration as dirty so it will be written on the next flush.
+    /// </summary>
     public void Invalidate()
     {
         Changed = true;
     }
 
+    /// <summary>
+    /// Writes the configuration to disk when it contains unsaved changes.
+    /// </summary>
     public void Flush()
     {
         if (!Changed)
@@ -45,6 +107,11 @@ public class ConfigRoot
         Changed = false;
     }
 
+    /// <summary>
+    /// Loads configuration from disk or interactively creates a new configuration when none exists.
+    /// </summary>
+    /// <param name="args">Command-line arguments that may override the configuration path.</param>
+    /// <returns>The loaded or newly created configuration.</returns>
     public static ConfigRoot Init(string[] args)
     {
         var index = Array.IndexOf(args, "-c");
@@ -69,6 +136,11 @@ public class ConfigRoot
         }
     }
 
+    /// <summary>
+    /// Reads a configuration file from disk and upgrades it to the current schema version when needed.
+    /// </summary>
+    /// <param name="path">The configuration file path.</param>
+    /// <returns>The loaded configuration.</returns>
     public static ConfigRoot Read(string path)
     {
         using var reader = XmlReader.Create(path);
@@ -88,6 +160,11 @@ public class ConfigRoot
         return result;
     }
 
+    /// <summary>
+    /// Interactively prompts for enough information to create a first-run configuration file.
+    /// </summary>
+    /// <param name="path">The configuration path that will be written.</param>
+    /// <returns>The newly created configuration.</returns>
     private static ConfigRoot Prompt(string path)
     {
         string? input;
@@ -187,6 +264,10 @@ public class ConfigRoot
         return result;
     }
     
+    /// <summary>
+    /// Writes the configuration object into the server XML format.
+    /// </summary>
+    /// <param name="writer">The XML writer that receives the configuration payload.</param>
     internal void Write(XmlWriter writer)
     {
         writer.WriteStartElement("CEDConfig");
@@ -216,6 +297,11 @@ public class ConfigRoot
         writer.WriteEndElement();
     }
 
+    /// <summary>
+    /// Reads a configuration object from the server XML format.
+    /// </summary>
+    /// <param name="reader">The XML reader positioned at the configuration payload.</param>
+    /// <returns>The deserialized configuration.</returns>
     internal static ConfigRoot Read(XmlReader reader)
     {
         ConfigRoot result = new ConfigRoot();

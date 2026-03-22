@@ -7,12 +7,25 @@ using static CentrED.Constants;
 
 namespace CentrED.Map;
 
+/// <summary>
+/// Wraps a land tile with render geometry, terrain normals, and preview-update helpers.
+/// </summary>
 public class LandObject : TileObject
 {
+    /// <summary>
+    /// Gets the strongly typed land tile represented by this object.
+    /// </summary>
     public LandTile LandTile;
 
+    /// <summary>
+    /// Gets a value indicating whether the land tile is a client-side ghost preview.
+    /// </summary>
     public bool IsGhost => LandTile.Block == null;
     
+    /// <summary>
+    /// Approximates the center altitude of the rendered quad.
+    /// </summary>
+    /// <returns>The averaged Z value across the tile corners.</returns>
     public sbyte AverageZ() //TODO Calculate me once
     { 
         int zTop = (int)(Vertices[0].Position.Z / TILE_Z_SCALE);
@@ -29,6 +42,10 @@ public class LandObject : TileObject
         }
     }
 
+    /// <summary>
+    /// Initializes a renderable land object for the supplied tile.
+    /// </summary>
+    /// <param name="tile">The land tile to wrap.</param>
     public LandObject(LandTile tile)
     {
         Tile = LandTile = tile;
@@ -36,12 +53,20 @@ public class LandObject : TileObject
         Update();
     }
 
+    /// <summary>
+    /// Refreshes the land quad geometry and texture selection from the current tile state.
+    /// </summary>
     public void Update()
     {
         UpdateCorners(Tile.Id);
         UpdateId(Tile.Id);
     }
 
+    /// <summary>
+    /// Determines whether the tile should always render as flat terrain.
+    /// </summary>
+    /// <param name="id">The land tile identifier.</param>
+    /// <returns><see langword="true"/> when the tile should ignore slope rendering.</returns>
     private bool AlwaysFlat(ushort id)
     {
         ref var tileData = ref CEDGame.MapManager.UoFileManager.TileData.LandData[id];
@@ -54,6 +79,10 @@ public class LandObject : TileObject
         return x == y && x == z && x == w;
     }
 
+    /// <summary>
+    /// Updates the quad corner heights for the current terrain slope.
+    /// </summary>
+    /// <param name="id">The land tile identifier used for validation and flat-tile rules.</param>
     public void UpdateCorners(ushort id)
     {
         if (id >= 0x4000 && CEDGame.MapManager.DebugInvalidTiles)
@@ -74,6 +103,10 @@ public class LandObject : TileObject
         Vertices[3].Position = new Vector3(posX + TILE_SIZE, posY + TILE_SIZE, cornerZ.W);
     }
     
+    /// <summary>
+    /// Updates the land texture selection and vertex UV data.
+    /// </summary>
+    /// <param name="newId">The land tile identifier to render.</param>
     public void UpdateId(ushort newId)
     {
         if (newId >= 0x4000 && CEDGame.MapManager.DebugInvalidTiles)
@@ -104,6 +137,7 @@ public class LandObject : TileObject
                 Vertices[i].Normal = normals[i];
             }
         }
+        // Prefer texmaps for stretched terrain or when the land art entry is missing.
         var useTexMap = !alwaysFlat && isTexMapValid && (Config.Instance.PreferTexMaps || isStretched || !isLandTileValid);
         if (useTexMap)
         {
@@ -152,6 +186,10 @@ public class LandObject : TileObject
         }
     }
     
+    /// <summary>
+    /// Samples neighboring land tiles to determine the rendered corner heights.
+    /// </summary>
+    /// <returns>The Z value for each quad corner in map render units.</returns>
     private Vector4 GetCornerZ()
     {
         var client = CEDClient;
@@ -175,7 +213,7 @@ public class LandObject : TileObject
         return new Vector4(top.Z, right.Z, left.Z, bottom.Z) * TILE_Z_SCALE;
     }
     
-    //Thank you ClassicUO :)
+    // Neighbor-aware normals match the terrain shading expected by the ClassicUO asset pipeline.
     private bool CalculateNormals(out Vector3[] normals)
     {
         normals = new Vector3[4];
@@ -213,6 +251,16 @@ public class LandObject : TileObject
         return isStretched;
     }
     
+    /// <summary>
+    /// Calculates a lighting normal for one land-tile corner.
+    /// </summary>
+    /// <param name="tile">The center tile.</param>
+    /// <param name="top">The neighboring top tile.</param>
+    /// <param name="right">The neighboring right tile.</param>
+    /// <param name="bottom">The neighboring bottom tile.</param>
+    /// <param name="left">The neighboring left tile.</param>
+    /// <param name="normal">The resulting normalized vector.</param>
+    /// <returns><see langword="true"/> when the corner is part of a stretched slope.</returns>
     private bool CalculateNormal(LandTile tile, LandTile? top, LandTile? right, LandTile? bottom, LandTile? left, out Vector3 normal)
     {
         var tileZ = tile.Z;

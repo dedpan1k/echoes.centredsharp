@@ -7,16 +7,36 @@ using static CentrED.LangEntry;
 
 namespace CentrED.UI.Windows;
 
+/// <summary>
+/// Shows detailed information for the currently selected tile object and allows browsing the
+/// other tiles that exist at the same world position.
+/// </summary>
 public class InfoWindow : Window
 {
+    /// <summary>
+    /// Stable ImGui title/ID pair for the selection info window.
+    /// </summary>
     public override string Name => LangManager.Get(INFO_WINDOW) + "###Info";
+
+    /// <summary>
+    /// The info window is part of the default editor layout and starts visible.
+    /// </summary>
     public override WindowState DefaultState => new()
     {
         IsOpen = true
     };
 
+    /// <summary>
+    /// Mouse-wheel scrolling is repurposed for cycling the per-tile combo selection instead of
+    /// scrolling the window contents.
+    /// </summary>
     public override ImGuiWindowFlags WindowFlags => ImGuiWindowFlags.NoScrollWithMouse;
 
+    /// <summary>
+    /// The primary tile currently selected in the map view.
+    /// Setting this also rebuilds the list of all tiles that share the same coordinates so the
+    /// window can inspect stacked land/static content at that location.
+    /// </summary>
     public TileObject? Selected
     {
         get => _Selected;
@@ -24,16 +44,16 @@ public class InfoWindow : Window
         {
             _Selected = value;
 
-            // Clear current lists by default
+            // Reset the secondary selection whenever the primary tile changes.
             _otherTiles.Clear();
             _otherSelected = null;
             _otherTilesNames = Array.Empty<string?>();
 
-            // Abort if nothing selected or client not running
+            // There is nothing meaningful to inspect without an active selection and loaded map state.
             if (_Selected == null || !CEDClient.Running)
                 return;
 
-            // Validate indices against current LandTiles dimensions
+            // Validate coordinates against the currently loaded land-tile grid before indexing it.
             var landTiles = CEDGame.MapManager.LandTiles;
             int w = landTiles.GetLength(0);
             int h = landTiles.GetLength(1);
@@ -43,7 +63,7 @@ public class InfoWindow : Window
             if (x < 0 || y < 0 || x >= w || y >= h)
                 return;
 
-            // Safely gather tiles at the location
+            // Collect the land tile plus any statics stacked on the same map coordinate.
             var landTile = landTiles[x, y];
             if (landTile != null)
             {
@@ -62,6 +82,8 @@ public class InfoWindow : Window
                         ? $"Object {stat.Tile.Id.FormatId()}"
                     : o.Tile.ShortString()
                 ).ToArray();
+
+            // Default the secondary browser to the first tile at the selected location.
             UpdateSelectedOtherTile(0);
         }
     }
@@ -73,6 +95,10 @@ public class InfoWindow : Window
     private int _otherTileIndex;
     private TileObject? _otherSelected;
     
+    /// <summary>
+    /// Draws information for the primary selection, then exposes a secondary picker for any
+    /// other tiles found at the same location.
+    /// </summary>
     protected override void InternalDraw()
     {
         if (_Selected == null) return;
@@ -87,6 +113,8 @@ public class InfoWindow : Window
         }
         if (ImGui.GetIO().MouseWheel != 0 && ImGui.IsItemHovered())
         {
+            // The combo also supports wheel cycling while hovered, which is faster when stepping
+            // through a tall stack of statics at one coordinate.
             var incVal = ImGui.GetIO().MouseWheel > 0 ? -1 : 1;
             UpdateSelectedOtherTile(_otherTileIndex + incVal);
             ImGui.GetIO().MouseWheel = 0;
@@ -95,12 +123,18 @@ public class InfoWindow : Window
         {
             if (ImGui.Button(LangManager.Get(APPLY_TOOL)))
             {
+                // Applying the active tool against the alternate selection lets the user target
+                // a stacked tile that is not the map view's primary pick.
                 CEDGame.MapManager.ActiveTool.Apply(_otherSelected);
             }
             DrawTileInfo(_otherSelected);
         }
     }
 
+    /// <summary>
+    /// Moves the secondary selection to the requested index while clamping it to the available
+    /// tile list.
+    /// </summary>
     private void UpdateSelectedOtherTile(int newIndex)
     {
         _otherTileIndex = newIndex;
@@ -119,6 +153,10 @@ public class InfoWindow : Window
         }
     }
 
+    /// <summary>
+    /// Draws either land-tile or static-tile details, including art preview, coordinates, id,
+    /// and tile-data metadata.
+    /// </summary>
     private void DrawTileInfo(TileObject? o)
     {
         if (o is LandObject lo)
@@ -126,7 +164,8 @@ public class InfoWindow : Window
             var landTile = lo.Tile;
             ImGui.Text(LangManager.Get(LAND));
 
-            // Check if art exists before calling GetLand()
+            // Some land ids have no corresponding art entry, so fall back to index 0 instead of
+            // asking the art system for an invalid sprite.
             var isArtValid = CEDGame.MapManager.UoFileManager.Arts.File.GetValidRefEntry(landTile.Id).Length > 0;
             uint artIndex = isArtValid ? (uint)landTile.Id : 0; // Fallback to UNUSED placeholder if no art
             var spriteInfo = CEDGame.MapManager.Arts.GetLand(artIndex);
@@ -150,6 +189,8 @@ public class InfoWindow : Window
             var spriteInfo = CEDGame.MapManager.Arts.GetArt((uint)(staticTile.Id + indexEntry.AnimOffset));
             if(spriteInfo.Texture != null)
             {
+                // Static art is cropped to its real non-transparent bounds so the preview does not
+                // waste space on padding inside the source atlas rectangle.
                 var realBounds =  CEDGame.MapManager.Arts.GetRealArtBounds(staticTile.Id);
                 CEDGame.UIManager.DrawImage
                 (

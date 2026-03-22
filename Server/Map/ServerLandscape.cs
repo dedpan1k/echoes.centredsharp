@@ -5,10 +5,18 @@ using CentrED.Utility;
 
 namespace CentrED.Server.Map;
 
+/// <summary>
+/// Owns the server-side map storage, block cache, persistence, validation, and radar integration.
+/// </summary>
 public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILogging
 {
     private readonly Logger _logger;
 
+    /// <summary>
+    /// Initializes the landscape from the configured map, statics, and metadata files.
+    /// </summary>
+    /// <param name="config">The server configuration that defines map dimensions and file paths.</param>
+    /// <param name="logger">The logger used for status and validation output.</param>
     public ServerLandscape
     (
         ConfigRoot config,
@@ -19,6 +27,7 @@ public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILoggi
         var mapFile = new FileInfo(config.Map.MapPath);
         if (!mapFile.Exists)
         {
+            // Prompting here keeps first-run setup simple for standalone server use.
             Console.WriteLine("Map file not found, do you want to create it? [y/n]");
             if (Console.ReadLine() == "y")
             {
@@ -95,10 +104,14 @@ public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILoggi
         _logger.LogInfo("Creating Cache");
         BlockUnloaded += OnRemovedCachedObject;
         
-        //Cache entire strip of chunks to reduce IO in case someone is doing naive iteration over entire map
+        // Cache an entire strip of blocks so broad map scans do not thrash the disk.
         BlockCache.Resize(Math.Max(config.Map.Width, config.Map.Height) + 1);
     }
 
+    /// <summary>
+    /// Creates a new empty map file matching the configured dimensions.
+    /// </summary>
+    /// <param name="map">The map file to create.</param>
     private void InitMap(FileInfo map)
     {
         using var mapFile = map.Open(FileMode.CreateNew, FileAccess.Write);
@@ -114,6 +127,11 @@ public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILoggi
         }
     }
 
+    /// <summary>
+    /// Creates empty statics and staidx files matching the configured dimensions.
+    /// </summary>
+    /// <param name="statics">The statics file to create.</param>
+    /// <param name="staidx">The static index file to create.</param>
     private void InitStatics(FileInfo statics, FileInfo staidx)
     {
         using var staticsFile = statics.Open(FileMode.CreateNew, FileAccess.Write);
@@ -130,6 +148,9 @@ public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILoggi
         }
     }
 
+    /// <summary>
+    /// Finalizer that delegates to <see cref="Dispose(bool)"/> through the generated dispose pattern.
+    /// </summary>
     ~ServerLandscape()
     {
         Dispose(false);
@@ -147,15 +168,29 @@ public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILoggi
     private readonly BinaryWriter _staticsWriter;
     private readonly BinaryWriter _staidxWriter;
     
+    /// <summary>
+    /// Gets a value indicating whether the backing map file uses the UOP container format.
+    /// </summary>
     public bool IsUop { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether the backing map file uses the classic MUL format.
+    /// </summary>
     public bool IsMul => !IsUop;
 
     private UopFile[] UopFiles { get; set; } = null!;
 
+    /// <summary>
+    /// Gets the tiledata provider used to validate and sort land and static tiles.
+    /// </summary>
     public TileDataProvider TileDataProvider { get; } = null!;
     private int HueCount = 3000;
     private RadarMap _radarMap = null!;
 
+    /// <summary>
+    /// Persists dirty land or static blocks when they leave the cache.
+    /// </summary>
+    /// <param name="block">The block being removed from the cache.</param>
     private void OnRemovedCachedObject(Block block)
     {
         if (block.LandBlock.Changed)
@@ -164,29 +199,53 @@ public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILoggi
             SaveBlock(block.StaticBlock);
     }
 
+    /// <summary>
+    /// Validates a static tile identifier against the loaded tiledata.
+    /// </summary>
+    /// <param name="tileId">The static tile identifier to validate.</param>
     internal void AssertStaticTileId(ushort tileId)
     {
         if (tileId >= TileDataProvider.StaticTiles.Length)
             throw new ArgumentException($"Invalid static tile id {tileId}");
     }
 
+    /// <summary>
+    /// Validates a land tile identifier against the loaded tiledata.
+    /// </summary>
+    /// <param name="tileId">The land tile identifier to validate.</param>
     internal void AssertLandTileId(ushort tileId)
     {
         if (tileId >= TileDataProvider.LandTiles.Length)
             throw new ArgumentException($"Invalid land tile id {tileId}");
     }
 
+    /// <summary>
+    /// Validates a hue index against the loaded hue table.
+    /// </summary>
+    /// <param name="hue">The hue index to validate.</param>
     internal void AssertHue(ushort hue)
     {
         if (hue > HueCount)
             throw new ArgumentException($"Invalid hue {hue}");
     }
     
+    /// <summary>
+    /// Converts block coordinates into the flattened block index used by the server.
+    /// </summary>
+    /// <param name="x">The block X coordinate.</param>
+    /// <param name="y">The block Y coordinate.</param>
+    /// <returns>The flattened block number.</returns>
     public long GetBlockNumber(ushort x, ushort y)
     {
         return x * Height + y;
     }
 
+    /// <summary>
+    /// Gets the byte offset of a land block within the map storage.
+    /// </summary>
+    /// <param name="x">The block X coordinate.</param>
+    /// <param name="y">The block Y coordinate.</param>
+    /// <returns>The byte offset for the requested block.</returns>
     public long GetMapOffset(ushort x, ushort y)
     {
         long offset = GetBlockNumber(x, y) * 196;
@@ -195,11 +254,23 @@ public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILoggi
         return offset;
     }
 
+    /// <summary>
+    /// Gets the byte offset of a static index entry within the staidx file.
+    /// </summary>
+    /// <param name="x">The block X coordinate.</param>
+    /// <param name="y">The block Y coordinate.</param>
+    /// <returns>The byte offset for the requested static index entry.</returns>
     public long GetStaidxOffset(ushort x, ushort y)
     {
         return GetBlockNumber(x, y) * 12;
     }
 
+    /// <summary>
+    /// Loads a block from the underlying land and statics files into the cache.
+    /// </summary>
+    /// <param name="x">The block X coordinate.</param>
+    /// <param name="y">The block Y coordinate.</param>
+    /// <returns>The loaded block.</returns>
     protected override Block LoadBlock(ushort x, ushort y)
     {
         AssertBlockCoords(x, y);
@@ -215,6 +286,12 @@ public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILoggi
         return block;
     }
 
+    /// <summary>
+    /// Updates the radar-map color for the supplied block when its visible top tile changes.
+    /// </summary>
+    /// <param name="ns">The client session receiving live radar updates.</param>
+    /// <param name="x">The tile X coordinate of the changed block origin.</param>
+    /// <param name="y">The tile Y coordinate of the changed block origin.</param>
     public void UpdateRadar(NetState<CEDServer> ns, ushort x, ushort y)
     {
         if ((x & 0x7) != 0 || (y & 0x7) != 0)
@@ -228,17 +305,30 @@ public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILoggi
         block.SortTiles(ref TileDataProvider.StaticTiles);
         var topStaticTile = block.AllTiles().MaxBy(tile => tile.PriorityZ);
 
+        // Radar tiles represent whichever surface is visually highest at the block origin,
+        // which can be either the land tile or the top-most static tile.
         if (topStaticTile?.PriorityZ > landPriority)
             radarId = (ushort)(topStaticTile.Id + 0x4000);
 
         _radarMap.Update(ns, (ushort)(x / 8), (ushort)(y / 8), radarId);
     }
 
+    /// <summary>
+    /// Gets the raw altitude of a land tile.
+    /// </summary>
+    /// <param name="x">The tile X coordinate.</param>
+    /// <param name="y">The tile Y coordinate.</param>
+    /// <returns>The land-tile altitude.</returns>
     public sbyte GetLandAlt(ushort x, ushort y)
     {
         return GetLandTile(x, y).Z;
     }
 
+    /// <summary>
+    /// Estimates the effective visible altitude of a land tile based on its surrounding slope.
+    /// </summary>
+    /// <param name="tile">The land tile whose visual altitude should be estimated.</param>
+    /// <returns>The effective altitude used for radar prioritization.</returns>
     public sbyte GetEffectiveAltitude(LandTile tile)
     {
         var north = tile.Z;
@@ -256,6 +346,9 @@ public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILoggi
         }
     }
 
+    /// <summary>
+    /// Flushes cached blocks and the underlying land and statics streams.
+    /// </summary>
     public void Flush()
     {
         BlockCache.Clear();
@@ -264,6 +357,10 @@ public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILoggi
         _statics.Flush();
     }
 
+    /// <summary>
+    /// Writes backup copies of the map, staidx, and statics files into the supplied directory.
+    /// </summary>
+    /// <param name="backupDir">The directory that will receive the backup files.</param>
     public void Backup(string backupDir)
     {
         Directory.CreateDirectory(backupDir);
@@ -274,6 +371,11 @@ public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILoggi
         }
     }
 
+    /// <summary>
+    /// Writes a full copy of one backing file to a backup path.
+    /// </summary>
+    /// <param name="file">The source file stream.</param>
+    /// <param name="backupPath">The destination backup path.</param>
     private void Backup(FileStream file, String backupPath)
     {
         using var backupStream = new FileStream(backupPath, FileMode.CreateNew, FileAccess.Write);
@@ -281,6 +383,10 @@ public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILoggi
         file.CopyTo(backupStream);
     }
 
+    /// <summary>
+    /// Persists a modified land block back into the map file.
+    /// </summary>
+    /// <param name="landBlock">The land block to save.</param>
     public void SaveBlock(LandBlock landBlock)
     {
         _logger.LogDebug($"Saving mapBlock {landBlock.X},{landBlock.Y}");
@@ -289,6 +395,10 @@ public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILoggi
         landBlock.Changed = false;
     }
 
+    /// <summary>
+    /// Persists a modified static block back into the statics and staidx files.
+    /// </summary>
+    /// <param name="staticBlock">The static block to save.</param>
     public void SaveBlock(StaticBlock staticBlock)
     {
         _logger.LogDebug($"Saving staticBlock {staticBlock.X},{staticBlock.Y}");
@@ -312,6 +422,7 @@ public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILoggi
             staticBlock.Write(_staticsWriter);
         }
 
+        // Staidx entries either point at the rewritten static payload or are reset to -1 when the block is empty.
         _staidx.Seek(-12, SeekOrigin.Current);
         index.Write(_staidxWriter);
         staticBlock.Changed = false;
@@ -331,6 +442,9 @@ public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILoggi
     }
 
 
+    /// <summary>
+    /// Validates that the configured map, staidx, and statics files match the expected dimensions and layout.
+    /// </summary>
     private void Validate()
     {
         var mapBlocks = Width * Height;
@@ -444,6 +558,10 @@ public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILoggi
         };
     }
 
+    /// <summary>
+    /// Produces a human-readable hint for common staidx file sizes.
+    /// </summary>
+    /// <returns>A description of the closest known staidx size.</returns>
     private string StaidxSizeHint()
     {
         return _staidx.Length switch
@@ -458,6 +576,10 @@ public sealed partial class ServerLandscape : BaseLandscape, IDisposable, ILoggi
         };
     }
 
+    /// <summary>
+    /// Reads the UOP file table so block offsets can be mapped into the container entries.
+    /// </summary>
+    /// <param name="pattern">The build-path naming pattern used inside the UOP container.</param>
     private void ReadUopFiles(string pattern)
     {
         _map.Seek(0, SeekOrigin.Begin);

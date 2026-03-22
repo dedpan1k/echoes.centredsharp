@@ -9,8 +9,16 @@ using Rectangle = System.Drawing.Rectangle;
 
 namespace CentrED.UI.Windows;
 
+/// <summary>
+/// Browses available hues, supports multi-selection and drag-and-drop, and manages named
+/// hue sets stored in the active profile.
+/// </summary>
 public class HuesWindow : Window
 {
+    /// <summary>
+    /// Subscribes the hue browser to connection events and initializes the profile-backed hue
+    /// set state used by the lower half of the window.
+    /// </summary>
     public HuesWindow()
     {
         CEDClient.Connected += FilterHues;
@@ -18,25 +26,48 @@ public class HuesWindow : Window
         UpdateHueSetValues();
     }
 
+    /// <summary>
+    /// Stable ImGui title/ID pair for the hue browser.
+    /// </summary>
     public override string Name => LangManager.Get(HUES_WINDOW) + "###Hues";
+
+    /// <summary>
+    /// The hue browser is part of the default workspace layout and starts open.
+    /// </summary>
     public override WindowState DefaultState => new()
     {
         IsOpen = true
     };
 
+    // Set when the next draw should scroll the list to the most recently selected hue.
     public bool UpdateScroll;
     private string _filter = "";
 
     private ushort _lastSelectedId;
 
+    // Multi-select state is shared between the main hue list and the active hue-set list.
     private MultiSelectStorage<ushort> _selection = new([0]);
+
+    /// <summary>
+    /// Exposes the current hue selection for drag-and-drop and consumers such as filter tools.
+    /// </summary>
     public ICollection<ushort> SelectedIds => _selection.Items;
 
+    // Cached result set for the current text filter.
     private List<ushort> _matchedHueIds = [];
+
+    /// <summary>
+    /// Drag-drop payload type used when moving hues into hue sets or other consumers.
+    /// </summary>
     public const string Hue_DragDrop_Target_Type = "HueDragDrop";
     
+    /// <summary>
+    /// Rebuilds the visible hue list from the active text filter.
+    /// Matching supports hue names plus both hexadecimal and decimal identifier forms.
+    /// </summary>
     private void FilterHues()
     {
+        _matchedHueIds.Clear();
         var huesManager = HuesManager.Instance;
         if (_filter.Length == 0)
         {
@@ -60,6 +91,9 @@ public class HuesWindow : Window
         }
     }
 
+    /// <summary>
+    /// Draws the main hue browser and the hue-set management area.
+    /// </summary>
     protected override void InternalDraw()
     {
         if (!CEDClient.Running)
@@ -75,6 +109,7 @@ public class HuesWindow : Window
         ImGui.Text(LangManager.Get(FILTER));
         if (ImGui.InputText("##Filter", ref _filter, 64))
         {
+            // Filter results are rebuilt immediately so the list always reflects the current text.
             FilterHues();
         }
         ImGui.SetNextWindowSizeConstraints(ImGuiEx.MIN_SIZE, ImGui.GetContentRegionAvail() - ImGuiEx.MIN_HEIGHT);
@@ -82,6 +117,9 @@ public class HuesWindow : Window
         DrawHueSets();
     }
 
+    /// <summary>
+    /// Draws the scrollable hue browser with multi-selection, previews, and context actions.
+    /// </summary>
     private void DrawHues()
     {
         if (ImGui.BeginChild("Hues", ImGuiChildFlags.Borders | ImGuiChildFlags.ResizeY))
@@ -93,6 +131,9 @@ public class HuesWindow : Window
                 var columnHeight = textSize.Y;
                 ImGui.TableSetupColumn("Id", ImGuiTableColumnFlags.WidthFixed, textSize.X);
                 clipper.Begin(_matchedHueIds.Count);
+
+                // Selection is tracked by row index, so the storage needs the current filtered
+                // id list before the clipper starts emitting visible ranges.
                 _selection.Begin(_matchedHueIds, clipper, ImGuiMultiSelectFlags.BoxSelect1D);
                 while (clipper.Step())
                 {
@@ -115,6 +156,8 @@ public class HuesWindow : Window
                 _selection.End();
                 if (UpdateScroll)
                 {
+                    // Scroll against the clipper's start position so the selected hue can be
+                    // brought into view without forcing every row to render.
                     var itemPosY = (float)clipper.StartPosY + clipper.ItemsHeight * _matchedHueIds.IndexOf(_lastSelectedId);
                     ImGui.SetScrollFromPosY(itemPosY - ImGui.GetWindowPos().Y);
                     UpdateScroll = false;
@@ -129,14 +172,25 @@ public class HuesWindow : Window
     private int _hueSetIndex;
     private string HueSetName => _hueSetNames[_hueSetIndex];
     private string _hueSetNewName = "";
+
+    // Index 0 is a temporary working set that exists only for the current session.
     private SortedSet<ushort> _tempHueSetValues = [];
+
+    /// <summary>
+    /// Cached values for the currently selected hue set.
+    /// </summary>
     public List<ushort> ActiveHueSetValues = [];
 
     private int _hueSetRemoveIndex = -1;
 
+    // Named hue sets are persisted on the active profile.
     private static Dictionary<string, SortedSet<ushort>> HueSets => ProfileManager.ActiveProfile.HueSets;
     private string[] _hueSetNames = HueSets.Keys.ToArray();
 
+    /// <summary>
+    /// Draws the hue-set management UI, including set selection, CRUD actions, and the active
+    /// set contents table.
+    /// </summary>
     private void DrawHueSets()
     {
         if (ImGui.BeginChild("HueSets"))
@@ -162,6 +216,7 @@ public class HuesWindow : Window
             ImGui.EndDisabled();
             if (ImGui.Combo("##HueSetCombo", ref _hueSetIndex, _hueSetNames, _hueSetNames.Length))
             {
+                    // Switching sets refreshes the cached contents shown in the lower table.
                UpdateHueSetValues();
             }
             if (ImGui.BeginChild("HueSetTable"))
@@ -185,6 +240,8 @@ public class HuesWindow : Window
                             {
                                 if (ImGui.Button(LangManager.Get(REMOVE)))
                                 {
+                                    // Removal is deferred until after iteration so the list is
+                                    // not mutated while the table is still walking it.
                                     _hueSetRemoveIndex = hueIndex;
                                     ImGui.CloseCurrentPopup();
                                 }
@@ -204,6 +261,7 @@ public class HuesWindow : Window
             ImGui.EndChild();
             if(ImGuiEx.DragDropTarget(Hue_DragDrop_Target_Type, out var hueIds))
             {
+                // Dragging hues into the active set is the fastest way to build curated groups.
                 foreach (var id in hueIds)
                 {
                     AddToHueSet(id);
@@ -257,6 +315,9 @@ public class HuesWindow : Window
         ImGui.EndChild();
     }
     
+    /// <summary>
+    /// Draws one hue row, including the preview strip and the selectable id cell.
+    /// </summary>
     public void DrawHueRow(int rowIndex, ushort hueIndex, float height)
     {
         var realIndex = hueIndex - 1;
@@ -268,6 +329,8 @@ public class HuesWindow : Window
             ImGui.TextColored(ImGuiColor.Red, "No Hue");
         else
         {
+            // The hue texture is arranged as a strip atlas, so each preview samples a 32x1 row
+            // and stretches it horizontally to show the full gradient.
             CEDGame.UIManager.DrawImage
             (
                 HuesManager.Instance.Texture,
@@ -277,7 +340,9 @@ public class HuesWindow : Window
             );
         }
         ImGui.TableSetColumnIndex(0);
-        //We draw columns in reverse order, so that this is the last item id that goes out of function 
+
+        // Columns are emitted in reverse order so the selectable id remains the last submitted
+        // item, which keeps context menus and selection bookkeeping attached to the row itself.
         var selected = _selection.Contains(hueIndex);
         ImGui.SetNextItemSelectionUserData(rowIndex);
         if (ImGui.Selectable($"{hueIndex.FormatId()}", selected, ImGuiSelectableFlags.SpanAllColumns))
@@ -287,6 +352,9 @@ public class HuesWindow : Window
         ImGuiEx.Tooltip(HuesManager.Instance.Names[hueIndex]);
     }
     
+    /// <summary>
+    /// Adds a hue to the active set, persisting the change when a named profile set is selected.
+    /// </summary>
     private void AddToHueSet(ushort id)
     {
         if (_hueSetIndex == 0)
@@ -301,6 +369,9 @@ public class HuesWindow : Window
         UpdateHueSetValues();
     }
 
+    /// <summary>
+    /// Removes a hue from the active set, persisting the change when applicable.
+    /// </summary>
     private void RemoveFromHueSet(ushort id)
     {
         if (_hueSetIndex == 0)
@@ -315,6 +386,9 @@ public class HuesWindow : Window
         UpdateHueSetValues();
     }
 
+    /// <summary>
+    /// Clears the active set and persists the result when operating on a named set.
+    /// </summary>
     private void ClearHueSet()
     {
         if (_hueSetIndex == 0)
@@ -329,11 +403,17 @@ public class HuesWindow : Window
         UpdateHueSetValues();
     }
 
+    /// <summary>
+    /// Rebuilds the combo-box name list, keeping the temporary working set at index 0.
+    /// </summary>
     private void UpdateHueSetNames()
     {
         _hueSetNames = HueSets.Keys.Prepend("").ToArray();
     }
 
+    /// <summary>
+    /// Refreshes the cached values for the currently selected hue set.
+    /// </summary>
     private void UpdateHueSetValues()
     {
         if (_hueSetIndex == 0)
@@ -346,6 +426,9 @@ public class HuesWindow : Window
         }
     }
 
+    /// <summary>
+    /// Synchronizes the hue selection with the supplied static object and scrolls the browser to it.
+    /// </summary>
     public void UpdateSelection(StaticObject so)
     {
         _selection.SetSelection(so.StaticTile.Hue);

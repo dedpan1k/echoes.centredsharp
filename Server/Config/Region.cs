@@ -3,11 +3,25 @@ using CentrED.Network;
 
 namespace CentrED.Server.Config;
 
+/// <summary>
+/// Defines a named set of editable rectangles used to restrict user access.
+/// </summary>
 public class Region(string name)
 {
+    /// <summary>
+    /// Gets or sets the display name of the region.
+    /// </summary>
     public string Name { get; set; } = name;
+
+    /// <summary>
+    /// Gets or sets the rectangles that make up the region.
+    /// </summary>
     public List<RectU16> Area { get; set; } = [];
     
+    /// <summary>
+    /// Writes the region into the server XML format.
+    /// </summary>
+    /// <param name="writer">The XML writer that receives the region payload.</param>
     internal void Write(XmlWriter writer)
     {
         writer.WriteStartElement("Region");
@@ -26,6 +40,11 @@ public class Region(string name)
         writer.WriteEndElement();//Region
     }
 
+    /// <summary>
+    /// Reads a region from the server XML format.
+    /// </summary>
+    /// <param name="reader">The XML reader positioned at the region payload.</param>
+    /// <returns>The deserialized region.</returns>
     internal static Region Read(XmlReader reader)
     {
         var result = new Region("");

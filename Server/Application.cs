@@ -3,9 +3,19 @@ using CentrED.Server.Config;
 
 namespace CentrED.Server;
 
+/// <summary>
+/// Provides the standalone server entry point and hosts console-driven process control.
+/// </summary>
 public class Application
 {
-    private static CEDServer _cedServer;
+    // The entry point owns a single in-process server instance for the lifetime of
+    // the process so shutdown hooks and the console thread can share it.
+    private static CEDServer _cedServer = null!;
+
+    /// <summary>
+    /// Initializes configuration, starts the server, and wires process-level shutdown behavior.
+    /// </summary>
+    /// <param name="args">Command-line arguments used to locate and override server configuration.</param>
     public static void Main(string[] args)
     {
         var assemblyName = Assembly.GetExecutingAssembly().GetName();
@@ -21,6 +31,8 @@ public class Application
             AppDomain.CurrentDomain.ProcessExit += (_, _) => _cedServer.Save();
             if (Environment.UserInteractive && !Console.IsInputRedirected)
             {
+                // Read console commands on a background thread so the main loop can
+                // keep servicing network traffic and autosave work.
                 new Thread(HandleConsoleInput)
                 {
                     IsBackground = true,
@@ -41,16 +53,23 @@ public class Application
         }
     }
 
+    /// <summary>
+    /// Gets the friendly process name reported by the current application domain.
+    /// </summary>
+    /// <returns>The executable name used to launch the current server process.</returns>
     public static string GetCurrentExecutable()
     {
         return AppDomain.CurrentDomain.FriendlyName;
     }
 
+    /// <summary>
+    /// Continuously reads console commands and forwards them into the server command queue.
+    /// </summary>
     public static async void HandleConsoleInput()
     {
         while (true)
         {
-            string input;
+            string? input;
             try
             {
                 input = Console.ReadLine()?.Trim();

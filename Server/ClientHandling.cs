@@ -4,8 +4,12 @@ using CentrED.Server.Config;
 
 namespace CentrED.Server;
 
+/// <summary>
+/// Handles client-facing collaboration packets such as chat, position updates, and password changes.
+/// </summary>
 public class ClientHandling
 {
+    // Client packet dispatch mirrors the protocol's one-byte subcommand layout.
     private static PacketHandler<CEDServer>?[] Handlers { get; }
 
     static ClientHandling()
@@ -18,6 +22,11 @@ public class ClientHandling
         Handlers[0x08] = new PacketHandler<CEDServer>(0, OnChangePasswordPacket);
     }
 
+    /// <summary>
+    /// Dispatches a client packet after verifying the sender has at least view access.
+    /// </summary>
+    /// <param name="reader">The packet payload reader positioned after the outer packet header.</param>
+    /// <param name="ns">The client session that sent the packet.</param>
     public static void OnClientHandlerPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnClientHandlerPacket");
@@ -27,6 +36,11 @@ public class ClientHandling
         packetHandler?.OnReceive(reader, ns);
     }
 
+    /// <summary>
+    /// Updates the persisted last-known map position for the active client.
+    /// </summary>
+    /// <param name="reader">The payload reader containing the target position.</param>
+    /// <param name="ns">The client session reporting its current position.</param>
     private static void OnUpdateClientPosPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnUpdateClientPosPacket");
@@ -36,12 +50,22 @@ public class ClientHandling
         ns.Parent.Config.Invalidate();
     }
 
+    /// <summary>
+    /// Broadcasts a chat message from the sending client to all connected users.
+    /// </summary>
+    /// <param name="reader">The payload reader containing the message text.</param>
+    /// <param name="ns">The client session that sent the message.</param>
     private static void OnChatMessagePacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnChatMessagePacket");
         ns.Parent.Broadcast(new ChatMessagePacket(ns.Username, reader.ReadString()));
     }
 
+    /// <summary>
+    /// Moves the requesting client view to the last known location of another user.
+    /// </summary>
+    /// <param name="reader">The payload reader containing the target username.</param>
+    /// <param name="ns">The client session requesting the jump.</param>
     private static void OnGotoClientPosPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnGotoClientPosPacket");
@@ -53,6 +77,11 @@ public class ClientHandling
         }
     }
 
+    /// <summary>
+    /// Validates and applies a password change for the active account.
+    /// </summary>
+    /// <param name="reader">The payload reader containing the old and new passwords.</param>
+    /// <param name="ns">The client session requesting the password update.</param>
     private static void OnChangePasswordPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnChangePasswordPacket");
@@ -84,11 +113,17 @@ public class ClientHandling
         ns.Send(new PasswordChangeStatusPacket(status));
     }
 
+    /// <summary>
+    /// Writes the region restrictions that limit the active client's editable area.
+    /// </summary>
+    /// <param name="writer">The packet writer that receives the restriction payload.</param>
+    /// <param name="ns">The client session whose account restrictions should be serialized.</param>
     public static void WriteAccountRestrictions(BinaryWriter writer, NetState<CEDServer> ns)
     {
         var account = ns.Parent.GetAccount(ns)!;
         if (account.AccessLevel >= AccessLevel.Administrator)
         {
+            // The client still expects an area-count field even when unrestricted.
             writer.Write((ushort)0); //Client expects areaCount all the time
             return;
         }

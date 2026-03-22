@@ -1,0 +1,55 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug CentrED",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build CentrEDSharp solution",
+            "program": "${workspaceFolder}/output/CentrED.dll",
+            "cwd": "${workspaceFolder}/output",
+            "console": "integratedTerminal",
+            "stopAtEntry": false,
+            "justMyCode": false,
+            "internalConsoleOptions": "neverOpen"
+        },
+        {
+            "name": "Run CentrED",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build CentrEDSharp solution",
+            "program": "${workspaceFolder}/output/CentrED.dll",
+            "cwd": "${workspaceFolder}/output",
+            "console": "integratedTerminal",
+            "stopAtEntry": false,
+            "justMyCode": false,
+            "internalConsoleOptions": "neverOpen",
+            "noDebug": true
+        },
+        {
+            "name": "Debug Cedserver",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build CentrEDSharp solution",
+            "program": "${workspaceFolder}/output/Cedserver.dll",
+            "cwd": "${workspaceFolder}/output",
+            "console": "integratedTerminal",
+            "stopAtEntry": false,
+            "justMyCode": false,
+            "internalConsoleOptions": "neverOpen"
+        },
+        {
+            "name": "Run Cedserver",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build CentrEDSharp solution",
+            "program": "${workspaceFolder}/output/Cedserver.dll",
+            "cwd": "${workspaceFolder}/output",
+            "console": "integratedTerminal",
+            "stopAtEntry": false,
+            "justMyCode": false,
+            "internalConsoleOptions": "neverOpen",
+            "noDebug": true
+        }
+    ]
+}

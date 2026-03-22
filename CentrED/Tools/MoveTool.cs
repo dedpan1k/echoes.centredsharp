@@ -7,9 +7,15 @@ using Vector2 = System.Numerics.Vector2;
 
 namespace CentrED.Tools;
 
+/// <summary>
+/// Moves static tiles by a configurable map-space offset.
+/// </summary>
 public class MoveTool : BaseTool
 {
+    /// <inheritdoc />
     public override string Name => LangManager.Get(MOVE_TOOL);
+
+    /// <inheritdoc />
     public override Keys Shortcut => Keys.F3;
 
     private int _xDelta;
@@ -19,6 +25,9 @@ public class MoveTool : BaseTool
     private int _xDragDelta;
     private int _yDragDelta;
 
+    /// <summary>
+    /// Draws the move-tool offset controls.
+    /// </summary>
     internal override void Draw()
     {
         base.Draw();
@@ -140,6 +149,10 @@ public class MoveTool : BaseTool
         ImGui.InputInt("Y", ref _yDelta);
     }
 
+    /// <summary>
+    /// Highlights the source static and creates a ghost at the moved destination.
+    /// </summary>
+    /// <param name="o">The target tile.</param>
     protected override void GhostApply(TileObject? o)
     {
         if (o is StaticObject so)
@@ -157,6 +170,10 @@ public class MoveTool : BaseTool
         }
     }
 
+    /// <summary>
+    /// Clears the move preview.
+    /// </summary>
+    /// <param name="o">The target tile.</param>
     protected override void GhostClear(TileObject? o)
     {
         if (o is StaticObject)
@@ -166,6 +183,10 @@ public class MoveTool : BaseTool
         }
     }
 
+    /// <summary>
+    /// Commits the moved position back into the source static tile.
+    /// </summary>
+    /// <param name="o">The target tile.</param>
     protected override void InternalApply(TileObject? o)
     {
         if (o is StaticObject so)

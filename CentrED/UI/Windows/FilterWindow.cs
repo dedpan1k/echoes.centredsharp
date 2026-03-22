@@ -8,39 +8,69 @@ using CentrED.IO;
 
 namespace CentrED.UI.Windows;
 
+/// <summary>
+/// Provides the runtime filtering controls for map rendering, including global visibility
+/// toggles, Z-range clipping, and inclusion/exclusion lists for object ids and hues.
+/// </summary>
 public class FilterWindow : Window
 {
+    /// <summary>
+    /// Hooks connection lifecycle events so the per-profile static filter can be restored on
+    /// connect and persisted again on disconnect.
+    /// </summary>
     public FilterWindow()
     {
         CEDClient.Connected += OnConnected;
         CEDClient.Disconnected += OnDisconnected;
     }
     
+    /// <summary>
+    /// Stable ImGui title/ID pair for the filter window.
+    /// </summary>
     public override string Name => LangManager.Get(FILTER_WINDOW) + "###Filter";
+
+    /// <summary>
+    /// Filtering controls are part of the default workspace layout and start visible.
+    /// </summary>
     public override WindowState DefaultState => new()
     {
         IsOpen = true
     };
 
+    /// <summary>
+    /// Tile preview width/height reused by the object-id filter table.
+    /// </summary>
     private Vector2 StaticDimensions => TilesWindow.TilesDimensions;
 
+    // These sets live on the map manager because they directly affect world rendering.
     private SortedSet<int> ObjectIdFilter => CEDGame.MapManager.ObjectIdFilter;
     private SortedSet<int> ObjectHueFilter => CEDGame.MapManager.ObjectHueFilter;
 
+    // Related windows provide the row rendering helpers used inside the filter tables.
     private TilesWindow _tilesWindow => CEDGame.UIManager.GetWindow<TilesWindow>(); 
     private HuesWindow _huesWindow => CEDGame.UIManager.GetWindow<HuesWindow>(); 
 
+    /// <summary>
+    /// Persists the current static-id filter back into the active profile when the session ends.
+    /// </summary>
     private static void OnDisconnected()
     {
         ProfileManager.ActiveProfile.StaticFilter = CEDGame.MapManager.ObjectIdFilter.ToList();
         ProfileManager.SaveStaticFilter();
     }
 
+    /// <summary>
+    /// Restores the active profile's saved static-id filter into the live map manager.
+    /// </summary>
     private static void OnConnected()
     {
         CEDGame.MapManager.ObjectIdFilter = new SortedSet<int>(ProfileManager.ActiveProfile.StaticFilter);
     }
 
+    /// <summary>
+    /// Draws the filter UI, including Z clipping, global render toggles, and list-based object
+    /// and hue filters.
+    /// </summary>
     protected override void InternalDraw()
     {
         if (!CEDClient.Running)
@@ -52,6 +82,8 @@ public class FilterWindow : Window
         ImGui.BeginGroup();
         if (ImGuiEx.DragInt(LangManager.Get(MAX) + " Z", ref CEDGame.MapManager.MaxZ, 1, CEDGame.MapManager.MinZ, 127))
         {
+            // The light cache depends on the visible Z slice, so moving the clipping plane
+            // requires recomputing the currently active lights.
             CEDGame.MapManager.UpdateLights();
         }
         if (ImGuiEx.DragInt(LangManager.Get(MIN) + " Z", ref CEDGame.MapManager.MinZ, 1, -128, CEDGame.MapManager.MaxZ))
@@ -71,6 +103,8 @@ public class FilterWindow : Window
             {
                 if (ImGui.BeginTabItem(LangManager.Get(OBJECTS)))
                 {
+                    // "Reversed" maps directly to the inclusive/exclusive behavior exposed by
+                    // the map manager's object-id filter implementation.
                     ImGui.Checkbox(LangManager.Get(ENABLED), ref CEDGame.MapManager.ObjectIdFilterEnabled);
                     ImGui.Checkbox(LangManager.Get(REVERSED), ref CEDGame.MapManager.ObjectIdFilterInclusive);
                     if (ImGui.Button(LangManager.Get(CLEAR)))
@@ -85,6 +119,9 @@ public class FilterWindow : Window
                             var clipper = ImGui.ImGuiListClipper();
                             ImGui.TableSetupColumn("Id", ImGuiTableColumnFlags.WidthFixed, ImGui.CalcTextSize(0xFFFF.FormatId()).X);
                             ImGui.TableSetupColumn("Graphic", ImGuiTableColumnFlags.WidthFixed, StaticDimensions.X);
+
+                            // The filter list can grow large, so clip rendering to only the
+                            // visible rows while preserving stable ordering from the sorted set.
                             clipper.Begin(ObjectIdFilter.Count);
                             while (clipper.Step())
                             {
@@ -112,6 +149,8 @@ public class FilterWindow : Window
                     ImGui.EndChild();
                     if (ImGuiEx.DragDropTarget(TilesWindow.OBJECT_DRAG_DROP_TYPE, out var ids))
                     {
+                        // Dragging from the tiles window is the fast path for building an
+                        // object filter without manually typing ids.
                         foreach (var id in ids)
                         {
                             ObjectIdFilter.Add(id);
@@ -136,6 +175,9 @@ public class FilterWindow : Window
                             var textSize = ImGui.CalcTextSize(0xFFFF.FormatId());
                             var columnHeight = textSize.Y;
                             ImGui.TableSetupColumn("Id", ImGuiTableColumnFlags.WidthFixed, textSize.X);
+
+                            // Hue rows are also virtualized because profiles may accumulate a
+                            // sizable saved filter over time.
                             clipper.Begin(ObjectHueFilter.Count);
                             while (clipper.Step())
                             {
@@ -163,6 +205,7 @@ public class FilterWindow : Window
 
                     if (ImGuiEx.DragDropTarget(HuesWindow.Hue_DragDrop_Target_Type, out var ids))
                     {
+                        // Hues can be added directly from the hue browser through drag and drop.
                         foreach (var id in ids)
                         {
                             ObjectHueFilter.Add(id);

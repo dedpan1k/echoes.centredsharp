@@ -6,10 +6,16 @@ using static CentrED.LangEntry;
 
 namespace CentrED.Tools;
 
+/// <summary>
+/// Adjusts land or static altitude using additive, fixed, or terrain-snapped rules.
+/// </summary>
 public class ElevateTool : BaseTool
 {
     
+    /// <inheritdoc />
     public override string Name => LangManager.Get(ELEVATE_TOOL);
+
+    /// <inheritdoc />
     public override Keys Shortcut => Keys.F4;
     
     enum ZMode
@@ -25,6 +31,9 @@ public class ElevateTool : BaseTool
     private int _randomMinus;
     private bool _lockPlusMinus;
 
+    /// <summary>
+    /// Draws the elevate-tool configuration UI.
+    /// </summary>
     internal override void Draw()
     {
         ImGui.Text(LangManager.Get(MODE));
@@ -70,6 +79,11 @@ public class ElevateTool : BaseTool
         DrawChance();
     }
 
+    /// <summary>
+    /// Calculates the destination altitude for a tile.
+    /// </summary>
+    /// <param name="tile">The source tile.</param>
+    /// <returns>The clamped destination altitude.</returns>
     private sbyte NewZ(BaseTile tile)
     {
         var newZ = (ZMode)_mode switch
@@ -84,6 +98,10 @@ public class ElevateTool : BaseTool
         return (sbyte)Math.Clamp(newZ, sbyte.MinValue, sbyte.MaxValue);
     }
 
+    /// <summary>
+    /// Applies an elevation preview to the target tile.
+    /// </summary>
+    /// <param name="o">The target tile.</param>
     protected override void GhostApply(TileObject? o)
     {
         if (o is StaticObject so)
@@ -106,6 +124,10 @@ public class ElevateTool : BaseTool
         }
     }
 
+    /// <summary>
+    /// Clears any elevation preview from the target tile.
+    /// </summary>
+    /// <param name="o">The target tile.</param>
     protected override void GhostClear(TileObject? o)
     {
         o?.Reset();
@@ -120,6 +142,10 @@ public class ElevateTool : BaseTool
         }
     }
 
+    /// <summary>
+    /// Commits the elevated altitude back into the target tile.
+    /// </summary>
+    /// <param name="o">The target tile.</param>
     protected override void InternalApply(TileObject? o)
     {
         if (o is StaticObject)
@@ -138,6 +164,10 @@ public class ElevateTool : BaseTool
         }
     }
 
+    /// <summary>
+    /// Switches the elevate tool into fixed-Z mode using a captured altitude.
+    /// </summary>
+    /// <param name="z">The captured altitude.</param>
     public override void GrabZ(sbyte z)
     {
         _mode = (int)ZMode.FIXED;

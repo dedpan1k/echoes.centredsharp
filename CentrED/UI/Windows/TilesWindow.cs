@@ -13,35 +13,65 @@ using Vector2 = System.Numerics.Vector2;
 
 namespace CentrED.UI.Windows;
 
+/// <summary>
+/// Browses land and static tiles, supports searching and tile-data filtering, and manages
+/// reusable tile sets for both terrain and objects.
+/// </summary>
 public class TilesWindow : Window
 {
+    /// <summary>
+    /// Compact view model used by the tile browser for list rows, tooltips, and grid previews.
+    /// </summary>
     public record struct TileInfo(int RealIndex, Texture2D? Texture, Rectangle Bounds, string Name, string Flags, uint Height)
     {
+        /// <summary>
+        /// Sentinel value returned when a requested tile cannot be represented safely.
+        /// </summary>
         public static TileInfo INVALID = new(-1, null, default, "", "", 0);
     };
 
+    /// <summary>
+    /// Hooks connection events so the browser can initialize profile-backed tile sets and font-
+    /// dependent layout when a session starts.
+    /// </summary>
     public TilesWindow()
     {
         CEDClient.Connected += OnConnected;
         CEDClient.Disconnected += OnDisconnected;
     }
 
+    /// <summary>
+    /// Rebuilds runtime state that depends on a live session, including tile-set caches and the
+    /// filtered tile lists.
+    /// </summary>
     private void OnConnected()
     {
         UpdateTileSetNames();
         UpdateTileSetValues();
         FilterTiles();
         _recalculateTextWidth = true;
-        //TODO: I don't like these events
+
+        // Tile-data filter layout depends on the current font metrics, so the width cache must be
+        // recomputed whenever the UI font changes.
         CEDGame.UIManager.FontChanged += RecalculateTiledataTextWidth;
     }
 
+    /// <summary>
+    /// Removes font-change hooks when disconnecting so the window does not keep stale event subscriptions.
+    /// </summary>
     private void OnDisconnected()
     {
         CEDGame.UIManager.FontChanged -= RecalculateTiledataTextWidth;
     }
 
+    /// <summary>
+    /// Stable ImGui title/ID pair for the tile browser.
+    /// </summary>
     public override string Name => LangManager.Get(TILES_WINDOW) + "###Tiles";
+
+    /// <summary>
+    /// The tile browser is part of the default editor layout and starts open.
+    /// </summary>
     public override WindowState DefaultState => new()
     {
         IsOpen = true
@@ -55,20 +85,50 @@ public class TilesWindow : Window
     private bool _gridMode; // List/Grid
     private bool _texMode; // Art/Texmap
     
+    /// <summary>
+    /// Highest valid land-tile index in the current asset layout.
+    /// </summary>
     public const int MAX_TERRAIN_INDEX = ArtLoader.MAX_LAND_DATA_INDEX_COUNT;
+
+    /// <summary>
+    /// Shared preview size used in list rows, grid cells, and tile-set entries.
+    /// </summary>
     public static Vector2 TilesDimensions = new(44, 44);
+
+    /// <summary>
+    /// Drag-drop payload identifier for terrain tiles.
+    /// </summary>
     public const string TERRAIN_DRAG_DROP_TYPE = "TerrainDragDrop";
+
+    /// <summary>
+    /// Drag-drop payload identifier for object/static tiles.
+    /// </summary>
     public const string OBJECT_DRAG_DROP_TYPE = "ObjectDragDrop";
 
+    // Cached result lists for the current text/tiledata filter state.
     private List<ushort> _matchedTerrainIds = [];
     private List<ushort> _matchedObjectIds = [];
 
+    /// <summary>
+    /// Returns whether the browser is currently showing land tiles.
+    /// </summary>
     public bool TerrainMode => !_objectMode;
+
+    /// <summary>
+    /// Returns whether the browser is currently showing object/static tiles.
+    /// </summary>
     public bool ObjectMode => _objectMode;
 
+    // Selection state is kept separately for terrain and object mode so switching tabs preserves
+    // the user's previous selection in each category.
     private MultiSelectStorage<ushort> _terrainSelection = new([0]);
     private MultiSelectStorage<ushort> _objectSelection = new([0]);
     private MultiSelectStorage<ushort> Selection => ObjectMode ? _objectSelection : _terrainSelection;
+
+    /// <summary>
+    /// Tracks the last explicitly selected tile id for the current mode so the list/grid can
+    /// scroll back to it on demand.
+    /// </summary>
     private ushort LastSelectedId
     {
         get => (ushort)(ObjectMode ? _lastSelectedObjectId : _lastSelectedTerrainId);
@@ -84,8 +144,14 @@ public class TilesWindow : Window
         }
     }
 
+    /// <summary>
+    /// Exposes the current mode-specific selection for tools and drag-drop targets.
+    /// </summary>
     public ICollection<ushort> SelectedIds => Selection.Items;
         
+    /// <summary>
+    /// Rebuilds the filtered terrain and object lists from the current text and tile-data filters.
+    /// </summary>
     private void FilterTiles()
     {
         if (_filterText.Length == 0 && !_tiledataFilterEnabled)
@@ -117,6 +183,9 @@ public class TilesWindow : Window
         }
     }
 
+    /// <summary>
+    /// Returns whether one tile matches the active search text and tile-data flag filter.
+    /// </summary>
     private bool FilterTile(int id, string name, ulong flags)
     {
         if (!string.IsNullOrWhiteSpace(_filterText) &&  
@@ -136,6 +205,10 @@ public class TilesWindow : Window
         return true;
     }
 
+    /// <summary>
+    /// Draws the top-level tile browser controls, then either the list or grid view plus the
+    /// tile-set manager.
+    /// </summary>
     protected override void InternalDraw()
     {
         if (!CEDClient.Running)
@@ -155,6 +228,7 @@ public class TilesWindow : Window
 
         if (ImGuiEx.TwoWaySwitch(LangManager.Get(LAND), LangManager.Get(OBJECTS), ref _objectMode))
         {
+            // Mode switches also swap the active tile-set collection and preserved selection state.
             _updateScroll = true;
             UpdateTileSetNames();
             UpdateTileSetValues();
@@ -165,6 +239,7 @@ public class TilesWindow : Window
         }
         if (TerrainMode)
         {
+            // Terrain mode can choose between raw land art and texmap preview rendering.
             ImGuiEx.TwoWaySwitch(" Art", "Tex", ref _texMode);
         }
         ImGui.Text(LangManager.Get(TILEDATA_FILTER));
@@ -190,6 +265,9 @@ public class TilesWindow : Window
         DrawTileSets();
     }
     
+    /// <summary>
+    /// Draws the filtered tile browser as a scrolling table with one tile per row.
+    /// </summary>
     private void DrawTilesList()
     {
         if (ImGui.BeginChild("Tiles", ImGuiChildFlags.Borders | ImGuiChildFlags.ResizeY))
@@ -201,6 +279,9 @@ public class TilesWindow : Window
                 ImGui.TableSetupColumn("Graphic", ImGuiTableColumnFlags.WidthFixed, TilesDimensions.X);
                 var ids = ObjectMode ? _matchedObjectIds : _matchedTerrainIds;
                 clipper.Begin(ids.Count);
+
+                // Selection runs on the filtered id list, not on absolute tile ids, so the storage
+                // is initialized with the exact list being displayed this frame.
                 Selection.Begin(ids, clipper, ImGuiMultiSelectFlags.BoxSelect1D);
                 while (clipper.Step())
                 {
@@ -217,6 +298,7 @@ public class TilesWindow : Window
                 Selection.End();
                 if (_updateScroll)
                 {
+                    // Scroll to the last selected tile without forcing the whole list to render.
                     float itemPosY = (float)clipper.StartPosY + clipper.ItemsHeight * ids.IndexOf(LastSelectedId);
                     ImGui.SetScrollFromPosY(itemPosY - ImGui.GetWindowPos().Y);
                     _updateScroll = false;
@@ -227,6 +309,9 @@ public class TilesWindow : Window
         ImGui.EndChild();
     }
 
+    /// <summary>
+    /// Draws the filtered tile browser as a fixed-size preview grid.
+    /// </summary>
     private void DrawTilesGrid()
     {
         if (ImGui.BeginChild("Tiles", ImGuiChildFlags.Borders | ImGuiChildFlags.ResizeY))
@@ -238,6 +323,8 @@ public class TilesWindow : Window
                 var ids = ObjectMode ? _matchedObjectIds : _matchedTerrainIds;
                 int rowsNumber = ids.Count / columns + 1;
                 clipper.Begin(rowsNumber);
+
+                // The 2D selection mode lets box-select work naturally across multiple columns.
                 Selection.Begin(ids, clipper, ImGuiMultiSelectFlags.BoxSelect2D);
                 while (clipper.Step())
                 {
@@ -272,6 +359,7 @@ public class TilesWindow : Window
                 Selection.End();
                 if (_updateScroll)
                 {
+                    // Grid scrolling uses the selected tile's row index instead of its absolute position.
                     float itemPosY = (float)clipper.StartPosY + clipper.ItemsHeight * ids.IndexOf(LastSelectedId) / columns;
                     ImGui.SetScrollFromPosY(itemPosY - ImGui.GetWindowPos().Y);
                     _updateScroll = false;
@@ -282,6 +370,9 @@ public class TilesWindow : Window
         ImGui.EndChild();
     }
 
+    /// <summary>
+    /// Opens the per-tile context menu for tile-set and object-filter shortcuts.
+    /// </summary>
     private void TilesContextMenu(int tileIndex)
     {
         if (ImGui.BeginPopupContextItem())
@@ -303,12 +394,18 @@ public class TilesWindow : Window
         }
     }
 
+    /// <summary>
+    /// Starts a drag source using the payload type for the current tile mode.
+    /// </summary>
     private void DragDropSource()
     {
         var type = ObjectMode ? OBJECT_DRAG_DROP_TYPE : TERRAIN_DRAG_DROP_TYPE;
         ImGuiEx.DragDropSource(type, Selection.Items);
     }
 
+    /// <summary>
+    /// Shows a tooltip with tile metadata and a larger art preview.
+    /// </summary>
     private void Tooltip(TileInfo tileInfo)
     {
         if (ImGui.IsItemHovered() && ImGui.BeginTooltip())
@@ -333,6 +430,10 @@ public class TilesWindow : Window
 
     private int _tileSetIndexTerrain;
     private int _tileSetIndexObject;
+
+    /// <summary>
+    /// Returns the active tile-set combo index for the current mode.
+    /// </summary>
     private int TileSetIndex
     {
         get => ObjectMode ? _tileSetIndexObject : _tileSetIndexTerrain;
@@ -352,6 +453,7 @@ public class TilesWindow : Window
     private string[] _tilesSetNames = [];
     private string _tileSetNewName = "";
     
+    // Index 0 represents a temporary working set that is not stored under a named profile entry.
     private List<ushort> _tileSetTempTerrain = [];
     private List<ushort> _tileSetTempObject = [];
     private List<ushort> TileSetTemp => ObjectMode ? _tileSetTempObject : _tileSetTempTerrain;
@@ -364,8 +466,15 @@ public class TilesWindow : Window
     private string ActiveTileSetName => _tilesSetNames[TileSetIndex];
     private List<ushort> ActiveTileSet => TileSetIndex == 0 ? TileSetTemp : TileSets[ActiveTileSetName];
     
+    /// <summary>
+    /// Cached copy of the currently selected tile-set contents for display in the lower pane.
+    /// </summary>
     public List<ushort> ActiveTileSetValues = [];
 
+    /// <summary>
+    /// Draws the tile-set manager for the current mode, including create/delete, reordering,
+    /// removal, and drag-drop population.
+    /// </summary>
     private void DrawTileSets()
     {
         if (ImGui.BeginChild("TileSets"))
@@ -416,6 +525,8 @@ public class TilesWindow : Window
                             DrawTileRow(i, tileIndex, tileInfo);
                             if (ImGui.BeginPopupContextItem())
                             {
+                                // Tile-set ordering matters for workflows like cycling or brush presets,
+                                // so the context menu exposes explicit move operations.
                                 if (ImGui.Button(LangManager.Get(MOVE_UP)))
                                 {
                                     TileSetMoveTile(i, i-1);
@@ -449,6 +560,7 @@ public class TilesWindow : Window
             ImGui.EndChild();
             if (ImGuiEx.DragDropTarget(ObjectMode ? OBJECT_DRAG_DROP_TYPE : TERRAIN_DRAG_DROP_TYPE, out var tileIds))
             {
+                // Tile sets accept the same drag payloads used by the main tile browser and other tools.
                 foreach (var id in tileIds)
                 {
                     TileSetAddTile(id);
@@ -500,6 +612,9 @@ public class TilesWindow : Window
         ImGui.EndChild();
     }
 
+    /// <summary>
+    /// Moves one tile inside the active tile set.
+    /// </summary>
     private void TileSetMoveTile(int oldIndex, int newIndex)
     {
         if (oldIndex < 0 || oldIndex >= ActiveTileSet.Count || newIndex < 0 || newIndex >= ActiveTileSet.Count)
@@ -512,6 +627,9 @@ public class TilesWindow : Window
         ProfileManager.Save();
     }
 
+    /// <summary>
+    /// Removes one tile from the active tile set.
+    /// </summary>
     private void TileSetRemoveTile(int index)
     {
         if (index < 0 || index >= ActiveTileSet.Count)
@@ -522,6 +640,9 @@ public class TilesWindow : Window
         ProfileManager.Save();
     }
 
+    /// <summary>
+    /// Appends one tile to the active tile set.
+    /// </summary>
     private void TileSetAddTile(ushort id)
     {
         ActiveTileSet.Add(id);
@@ -529,11 +650,17 @@ public class TilesWindow : Window
         ProfileManager.Save();
     }
 
+    /// <summary>
+    /// Returns tile metadata for the current mode.
+    /// </summary>
     private TileInfo GetTileInfo(int index)
     {
         return ObjectMode ? GetObjectInfo(index) : GetTerrainInfo(index);
     }
 
+    /// <summary>
+    /// Builds tile metadata and preview bounds for a land tile.
+    /// </summary>
     private TileInfo GetTerrainInfo(int index)
     {
         if (index > MAX_TERRAIN_INDEX)
@@ -547,10 +674,12 @@ public class TilesWindow : Window
         SpriteInfo spriteInfo;
         if (_texMode)
         {
+            // Texmap mode previews the terrain texture referenced by tiledata instead of the raw land art.
             spriteInfo = CEDGame.MapManager.Texmaps.GetTexmap(CEDGame.MapManager.UoFileManager.TileData.LandData[index].TexID);
         }
         else
         {
+            // Some land ids lack direct art; index 0 is used as a safe fallback placeholder.
             var isArtValid = CEDGame.MapManager.UoFileManager.Arts.File.GetValidRefEntry(index).Length > 0;
             var artIndex = isArtValid ? (uint)index : 0;
             spriteInfo = CEDGame.MapManager.Arts.GetLand(artIndex);
@@ -561,6 +690,9 @@ public class TilesWindow : Window
         return new TileInfo(index, spriteInfo.Texture, spriteInfo.UV, name, flags, 0);
     }
 
+    /// <summary>
+    /// Builds tile metadata and cropped preview bounds for a static/object tile.
+    /// </summary>
     public TileInfo GetObjectInfo(int index)
     {
         var realIndex = index + MAX_TERRAIN_INDEX;
@@ -579,6 +711,8 @@ public class TilesWindow : Window
         (
             realIndex,
             spriteInfo.Texture,
+
+            // Static art is cropped to the real sprite bounds so transparent atlas padding is skipped.
             new Rectangle(spriteInfo.UV.X + realBounds.X, spriteInfo.UV.Y + realBounds.Y, realBounds.Width, realBounds.Height),
             name,
             flags,
@@ -586,6 +720,9 @@ public class TilesWindow : Window
         );
     }
 
+    /// <summary>
+    /// Draws one tile preview, optionally with a forced size and stretch behavior.
+    /// </summary>
     private void DrawTileArt(TileInfo tileInfo, Vector2 sizeOverride = default, bool stretch = false)
     {
         if (tileInfo == TileInfo.INVALID)
@@ -607,6 +744,9 @@ public class TilesWindow : Window
         }
     }
 
+    /// <summary>
+    /// Draws one row in the list/table tile browser.
+    /// </summary>
     public void DrawTileRow(int index, ushort tileId, TileInfo tileInfo)
     {
         ImGui.PushID(index);
@@ -630,6 +770,9 @@ public class TilesWindow : Window
         ImGui.PopID();
     }
 
+    /// <summary>
+    /// Synchronizes the browser selection with a tile chosen in the world view.
+    /// </summary>
     public void UpdateSelection(TileObject mapObject)
     {
         if (mapObject is StaticObject)
@@ -649,16 +792,25 @@ public class TilesWindow : Window
         _updateScroll = true;
     }
 
+    /// <summary>
+    /// Rebuilds the combo-box names for the current mode's tile sets.
+    /// </summary>
     private void UpdateTileSetNames()
     {
         _tilesSetNames = TileSets.Keys.Prepend("").ToArray();
     }
     
+    /// <summary>
+    /// Refreshes the cached values for the currently selected tile set.
+    /// </summary>
     private void UpdateTileSetValues()
     {
         ActiveTileSetValues = ActiveTileSet;
     }
     
+    /// <summary>
+    /// Clears the current tile set and persists the change.
+    /// </summary>
     private void ClearTileSet()
     {
         ActiveTileSet.Clear();
@@ -677,6 +829,9 @@ public class TilesWindow : Window
     private static readonly TileFlag[] TiledataFilterFlags = Enum.GetValues<TileFlag>().Where(f => f != TileFlag.None).ToArray();
     private static readonly ulong TiledataFilterAllValue = TiledataFilterFlags.Aggregate(0ul, (a, b) => a | (ulong)b);
     
+    /// <summary>
+    /// Draws the tile-data flag filter panel used to narrow the tile list by Ultima tile flags.
+    /// </summary>
     private void DrawTiledataFilter()
     {
         if (ImGui.BeginChild("TiledataFilter", new Vector2(), ImGuiChildFlags.Borders | ImGuiChildFlags.ResizeY))
@@ -715,7 +870,8 @@ public class TilesWindow : Window
                             var flag = TiledataFilterFlags[index];
                             var flagValue = (ulong)flag;
                             var enabled = (_tiledataFilterValue & flagValue) > 0;
-                            //TODO: Allocate all the flags names once
+
+                            // Toggling any flag immediately rebuilds the filtered tile lists.
                             if (ImGui.Checkbox(flag.ToString(), ref enabled))
                             {
                                 _tiledataFilterValue ^= flagValue;
@@ -730,6 +886,9 @@ public class TilesWindow : Window
         ImGui.EndChild();
     }
 
+    /// <summary>
+    /// Recomputes the widest tile-data flag label so the filter table can choose a stable column width.
+    /// </summary>
     private void RecalculateTiledataTextWidth()
     {
         var max = 30;

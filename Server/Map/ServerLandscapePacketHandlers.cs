@@ -6,6 +6,10 @@ namespace CentrED.Server.Map;
 
 public partial class ServerLandscape
 {
+    /// <summary>
+    /// Registers landscape-editing packet handlers for the supplied client session.
+    /// </summary>
+    /// <param name="ns">The client session that should receive landscape packet handlers.</param>
     public void RegisterPacketHandlers(NetState<CEDServer> ns)
     {
         ns.RegisterPacketHandler(0x04, 0, OnRequestBlocksPacket);
@@ -20,6 +24,14 @@ public partial class ServerLandscape
         ns.RegisterPacketHandler(0x0E, 0, OnLargeScaleCommandPacket);
     }
     
+    /// <summary>
+    /// Validates that a session both meets the requested access level and is authorized for the target tile.
+    /// </summary>
+    /// <param name="ns">The client session requesting the operation.</param>
+    /// <param name="accessLevel">The minimum access level required.</param>
+    /// <param name="x">The target tile X coordinate.</param>
+    /// <param name="y">The target tile Y coordinate.</param>
+    /// <returns><see langword="true"/> when the session may edit the target tile; otherwise, <see langword="false"/>.</returns>
     private bool ValidateAccess(NetState<CEDServer> ns, AccessLevel accessLevel, uint x, uint y)
     {
         if (!ns.ValidateAccess(accessLevel))
@@ -37,6 +49,11 @@ public partial class ServerLandscape
         return false;
     }
     
+    /// <summary>
+    /// Sends the requested blocks to the client and subscribes the session to future updates for them.
+    /// </summary>
+    /// <param name="reader">The payload reader containing requested block coordinates.</param>
+    /// <param name="ns">The requesting client session.</param>
     private void OnRequestBlocksPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnRequestBlocksPacket");
@@ -49,6 +66,9 @@ public partial class ServerLandscape
             coords[i] = reader.ReadPointU16();
             ns.LogDebug($"Requested x={coords[i].X} y={coords[i].Y}");
         }
+
+        // Chunk large requests so packet compression and client processing stay within
+        // the size envelope the legacy protocol handles comfortably.
         foreach (var chunk in coords.Chunk(250))
         {
             ns.SendCompressed(new BlockPacket(new List<PointU16>(chunk), ns));
@@ -60,6 +80,11 @@ public partial class ServerLandscape
         }
     }
 
+    /// <summary>
+    /// Unsubscribes the client from updates for a previously requested block.
+    /// </summary>
+    /// <param name="reader">The payload reader containing the block coordinates.</param>
+    /// <param name="ns">The client session removing the subscription.</param>
     private void OnFreeBlockPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnFreeBlockPacket");
@@ -70,6 +95,12 @@ public partial class ServerLandscape
         var subscriptions = ns.Parent.GetBlockSubscriptions(x, y);
         subscriptions.Remove(ns);
     }
+
+    /// <summary>
+    /// Applies a land-tile edit and broadcasts the updated tile to subscribed clients.
+    /// </summary>
+    /// <param name="reader">The payload reader containing the new land-tile state.</param>
+    /// <param name="ns">The client session requesting the edit.</param>
     private void OnDrawMapPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnDrawMapPacket");
@@ -96,6 +127,11 @@ public partial class ServerLandscape
         UpdateRadar(ns, x, y);
     }
 
+    /// <summary>
+    /// Inserts a static tile and broadcasts the addition to subscribed clients.
+    /// </summary>
+    /// <param name="reader">The payload reader containing the static definition.</param>
+    /// <param name="ns">The client session requesting the insertion.</param>
     private void OnInsertStaticPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnInsertStaticPacket");
@@ -121,6 +157,11 @@ public partial class ServerLandscape
         UpdateRadar(ns, staticInfo.X, staticInfo.Y);
     }
 
+    /// <summary>
+    /// Deletes a static tile and broadcasts the removal to subscribed clients.
+    /// </summary>
+    /// <param name="reader">The payload reader identifying the static tile.</param>
+    /// <param name="ns">The client session requesting the deletion.</param>
     private void OnDeleteStaticPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnDeleteStaticPacket");
@@ -146,6 +187,11 @@ public partial class ServerLandscape
         UpdateRadar(ns, x, y);
     }
 
+    /// <summary>
+    /// Updates a static tile altitude and broadcasts the change to subscribed clients.
+    /// </summary>
+    /// <param name="reader">The payload reader identifying the static tile and new altitude.</param>
+    /// <param name="ns">The client session requesting the elevation change.</param>
     private void OnElevateStaticPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnElevateStaticPacket");
@@ -173,6 +219,11 @@ public partial class ServerLandscape
         UpdateRadar(ns, x, y);
     }
 
+    /// <summary>
+    /// Moves a static tile, sending the appropriate add, delete, or move packet per subscriber overlap.
+    /// </summary>
+    /// <param name="reader">The payload reader identifying the source tile and destination coordinates.</param>
+    /// <param name="ns">The client session requesting the move.</param>
     private void OnMoveStaticPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnMoveStaticPacket");
@@ -217,6 +268,8 @@ public partial class ServerLandscape
         var sourceSubscriptions = ns.Parent.GetBlockSubscriptions(sourceBlock.X, sourceBlock.Y);
         var targetSubscriptions = ns.Parent.GetBlockSubscriptions(targetBlock.X, targetBlock.Y);
 
+        // Subscribers that view both blocks can receive a compact move packet, while
+        // viewers that only see one side must observe the change as delete or insert.
         var moveSubscriptions = sourceSubscriptions.Intersect(targetSubscriptions);
         var deleteSubscriptions = sourceSubscriptions.Except(targetSubscriptions);
         var insertSubscriptions = targetSubscriptions.Except(sourceSubscriptions);
@@ -238,6 +291,11 @@ public partial class ServerLandscape
         UpdateRadar(ns, newX, newY);
     }
 
+    /// <summary>
+    /// Applies a hue change to a static tile and broadcasts the update.
+    /// </summary>
+    /// <param name="reader">The payload reader identifying the static tile and new hue.</param>
+    /// <param name="ns">The client session requesting the hue update.</param>
     private void OnHueStaticPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         ns.LogDebug("Server OnHueStaticPacket");
@@ -263,6 +321,11 @@ public partial class ServerLandscape
     }
 
     [SuppressMessage("ReSharper", "PossibleMultipleEnumeration")]
+    /// <summary>
+    /// Executes a compound large-scale operation across the supplied rectangles and refreshes affected clients.
+    /// </summary>
+    /// <param name="reader">The payload reader containing the large-scale operation definition.</param>
+    /// <param name="ns">The client session requesting the operation.</param>
     private void OnLargeScaleCommandPacket(SpanReader reader, NetState<CEDServer> ns)
     {
         if (!ns.ValidateAccess(AccessLevel.Developer))
@@ -336,7 +399,9 @@ public partial class ServerLandscape
                 operations.Add(new LsDeleteStatics(ref reader));
             if (reader.ReadBoolean())
                 operations.Add(new LsInsertStatics(ref reader));
-            //We have read everything, now we can validate
+
+            // Validation runs after the entire command is parsed so bad payloads fail
+            // before any block is mutated.
             foreach (var operation in operations)
             {
                 operation.Validate(this);
@@ -374,7 +439,8 @@ public partial class ServerLandscape
                         }
                     }
 
-                    //Notify affected clients
+                    // Queue block refreshes per client and send them after the operation so
+                    // subscribers observe a coherent post-operation state.
                     foreach (var netState in ns.Parent.GetBlockSubscriptions(blockX, blockY))
                     {
                         clients[netState].Add(new PointU16(blockX, blockY));
@@ -417,7 +483,8 @@ public partial class ServerLandscape
         ns.LogInfo("Large scale operation ended.");
     }
 
-    //It's extremely ugly, but I will get rid of lso once I implement scripting in client
+    // Large-scale operations apply land and static mutations through the same helper so
+    // the server can keep permission checks, block tracking, and packet refresh logic centralized.
     private void LsoApply(LargeScaleOperation lso, LandTile landTile, IEnumerable<StaticTile> staticTiles, List<(ushort, ushort)> additionalAffectedBlocks)
     {
         if (lso is LsCopyMove copyMove)

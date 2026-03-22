@@ -3,8 +3,16 @@ using CentrED.Network;
 
 namespace CentrED.Client.Map;
 
+/// <summary>
+/// Handles incoming landscape mutation packets and applies them to the local cache.
+/// </summary>
 public partial class ClientLandscape
 {
+    /// <summary>
+    /// Deserializes incoming block payloads into the local cache.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private void OnBlockPacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.LogDebug("Client OnBlockPacket");
@@ -26,6 +34,7 @@ public partial class ClientLandscape
                 block.StaticBlock.SortTiles(ref ns.Parent.StaticTileData);
             if (BlockCache.Contains(Block.Id(block)))
             {
+                // Replacing an already cached block means the prior instance can be treated as released.
                 ns.Parent.OnBlockReleased(block);
             }
             BlockCache.Add(block);
@@ -34,6 +43,11 @@ public partial class ClientLandscape
         }
     }
 
+    /// <summary>
+    /// Applies an incoming land replacement or elevation packet.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private void OnDrawMapPacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.LogDebug("Client OnDrawMapPacket");
@@ -55,6 +69,11 @@ public partial class ClientLandscape
         InternalSetLandId(tile, newId);
     }
 
+    /// <summary>
+    /// Applies an incoming static insertion packet.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private void OnInsertStaticPacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.LogDebug("Client OnInsertStaticPacket");
@@ -72,6 +91,11 @@ public partial class ClientLandscape
         ns.Parent.OnAfterStaticChanged(newTile);
     }
 
+    /// <summary>
+    /// Applies an incoming static deletion packet.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private void OnDeleteStaticPacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.LogDebug("Client OnDeleteStaticPacket");
@@ -88,6 +112,11 @@ public partial class ClientLandscape
         ns.Parent.OnStaticTileRemoved(tile);
     }
 
+    /// <summary>
+    /// Applies an incoming static elevation packet.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private void OnElevateStaticPacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.LogDebug("Client OnElevateStaticPacket");
@@ -109,6 +138,11 @@ public partial class ClientLandscape
         ns.Parent.OnAfterStaticChanged(tile);
     }
 
+    /// <summary>
+    /// Applies an incoming static move packet.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private void OnMoveStaticPacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.LogDebug("Client OnMoveStaticPacket");
@@ -132,6 +166,11 @@ public partial class ClientLandscape
         ns.Parent.OnAfterStaticChanged(tile);
     }
 
+    /// <summary>
+    /// Applies an incoming static hue packet.
+    /// </summary>
+    /// <param name="reader">The packet payload reader.</param>
+    /// <param name="ns">The client network session.</param>
     private void OnHueStaticPacket(SpanReader reader, NetState<CentrEDClient> ns)
     {
         ns.LogDebug("Client OnHueStaticPacket");

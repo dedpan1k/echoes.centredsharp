@@ -9,16 +9,30 @@ using static CentrED.LangEntry;
 
 namespace CentrED.UI.Windows;
 
+/// <summary>
+/// Presents the connection form for the collaborative server, including profile selection,
+/// credential editing, and Ultima client directory selection.
+/// </summary>
 public class ConnectWindow : Window
 {
+    /// <summary>
+    /// Stable ImGui title/ID pair for the connection window.
+    /// </summary>
     public override string Name => LangManager.Get(CONNECT_WINDOW) + "###Connect";
 
+    /// <summary>
+    /// The connection window is meant to be visible on first launch so users can establish a
+    /// session immediately.
+    /// </summary>
     public override WindowState DefaultState => new()
     {
         IsOpen = true
     };
 
     private const int TextInputLength = 255;
+
+    // The editable form state is initialized from the active profile and can then diverge
+    // until the user saves or switches profiles again.
     private int _profileIndex = ProfileManager.Profiles.IndexOf(ProfileManager.ActiveProfile);
     private string _hostname = ProfileManager.ActiveProfile.Hostname;
     private int _port = ProfileManager.ActiveProfile.Port;
@@ -31,6 +45,9 @@ public class ConnectWindow : Window
     internal Vector4 InfoColor = ImGuiColor.Red;
     private string _profileName = "";
 
+    /// <summary>
+    /// Draws the profile picker, editable connection fields, and connect/disconnect controls.
+    /// </summary>
     protected override void InternalDraw()
     {
         if (!Show)
@@ -40,6 +57,8 @@ public class ConnectWindow : Window
         ImGui.SetWindowSize(Name, new Vector2(510, 250));
         if (ImGui.Combo(LangManager.Get(PROFILE), ref _profileIndex, ProfileManager.ProfileNames, ProfileManager.Profiles.Count))
         {
+            // Switching profiles replaces the working form values with the selected profile's
+            // persisted connection settings.
             var profile = ProfileManager.Profiles[_profileIndex];
             _profileName = profile.Name;
             _hostname = profile.Hostname;
@@ -55,6 +74,7 @@ public class ConnectWindow : Window
             ImGui.OpenPopup("SaveProfile");
         }
 
+        // Saving writes the current form fields back as a reusable named profile.
         if (ImGui.BeginPopup("SaveProfile"))
         {
             ImGui.InputText(LangManager.Get(NAME), ref _profileName, 128);
@@ -103,6 +123,8 @@ public class ConnectWindow : Window
         ImGui.SameLine();
         if (ImGui.Button("..."))
         {
+            // Seed the folder picker with the current path when available so small fixes do
+            // not require navigating from the working directory every time.
             var defaultPath = _clientPath.Length == 0 ? Environment.CurrentDirectory : _clientPath;
             if (TinyFileDialogs.TrySelectFolder(LangManager.Get(SELECT_DIRECTORY), defaultPath, out var newPath))
             {
@@ -110,6 +132,9 @@ public class ConnectWindow : Window
             }
         }
         ImGui.TextColored(InfoColor, Info);
+
+        // Connecting is blocked until the minimum required fields are present or while a
+        // background connection attempt is already in flight.
         ImGui.BeginDisabled
         (
             _hostname.Length == 0 || _password.Length == 0 || _username.Length == 0 || _clientPath.Length == 0 || _buttonDisabled
@@ -125,6 +150,8 @@ public class ConnectWindow : Window
         {
             if (ImGui.Button(LangManager.Get(CONNECT)) || ImGui.IsWindowFocused() && ImGui.IsKeyPressed(ImGuiKey.Enter))
             {
+                // The connect path runs on a worker task because loading client data and the
+                // initial network connection can both block long enough to freeze the UI.
                 _buttonDisabled = true;
                 new Task
                 (
@@ -132,6 +159,7 @@ public class ConnectWindow : Window
                     {
                         try
                         {
+                            // The status text doubles as a lightweight progress indicator.
                             InfoColor = ImGuiColor.Blue;
                             Info = LangManager.Get(LOADING);
                             CEDGame.MapManager.Load(_clientPath);
@@ -151,12 +179,17 @@ public class ConnectWindow : Window
                         }
                         finally
                         {
+                            // Re-enable the button regardless of success so the user can retry
+                            // or adjust the settings after a failure.
                             _buttonDisabled = false;
                         }
                     }
                 ).Start();
             }
         }
+
+        // Once the client exposes a more specific status string, prefer it over the local
+        // progress text so the window reflects the actual connection state.
         if (CEDClient.Status != "")
         {
             Info = CEDClient.Status;
