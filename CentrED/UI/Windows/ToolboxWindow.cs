@@ -18,6 +18,7 @@ public class ToolboxWindow : Window
     private static readonly Vector2 SlimNavbarPadding = new(3f, 3f);
     private static readonly Vector2 SlimNavbarSpacing = new(10f, 0f);
     private static readonly Vector2 FlyoutPadding = new(6f, 4f);
+    private static readonly Vector2 ToolbarSectionSpacing = new(4f, 0f);
     private const float MinHorizontalParameterWidth = 160f;
     private const float MaxHorizontalParameterWidth = 320f;
     private const float HorizontalParameterWidthRatio = 0.22f;
@@ -144,6 +145,7 @@ public class ToolboxWindow : Window
     {
         var tools = CEDGame.MapManager.Tools;
         var activeTool = CEDGame.MapManager.ActiveTool;
+        var minimapWindow = CEDGame.UIManager.GetWindow<MinimapWindow>();
 
         ImGui.SetCursorPosY(3f);
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, SlimNavbarPadding);
@@ -196,6 +198,25 @@ public class ToolboxWindow : Window
                     _scrollActiveToolIntoView = false;
                 }
             }
+        }
+
+        if (tools.Count > 0)
+        {
+            ImGui.SameLine(0f, ToolbarSectionSpacing.X);
+        }
+
+        var separatorMin = ImGui.GetCursorScreenPos();
+        var separatorHeight = ImGui.GetFrameHeight();
+        ImGui.Dummy(new Vector2(1f, separatorHeight));
+        var separatorMax = separatorMin + new Vector2(1f, separatorHeight);
+        ImGui.GetWindowDrawList().AddLine(separatorMin + new Vector2(0f, 2f), separatorMax - new Vector2(0f, 2f), ImGui.GetColorU32(ImGuiCol.Border));
+        ImGui.SameLine(0f, ToolbarSectionSpacing.X);
+
+        var minimapLabel = $"{LangManager.Get(MINIMAP_WINDOW)} (M)";
+        var minimapButtonSize = GetTabButtonSize(minimapLabel, SlimNavbarPadding, 0.62f);
+        if (DrawTabButton("MiniMapToggle", minimapLabel, minimapWindow.Show, minimapButtonSize))
+        {
+            minimapWindow.Show = !minimapWindow.Show;
         }
 
         ImGui.PopStyleVar(2);
