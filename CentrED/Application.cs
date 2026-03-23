@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using CentrED.Assets;
 using CentrED.Client;
 using CentrED.Server;
 using CentrED.Utils;
@@ -35,6 +36,41 @@ public class Application
     public static readonly CentrEDClient CEDClient = new();
 
     /// <summary>
+    /// Gets the asset workspace service that discovers and validates local Ultima asset files.
+    /// </summary>
+    public static readonly AssetWorkspaceService AssetWorkspace = new();
+
+    /// <summary>
+    /// Gets the local art and land tile browser service used by the asset workspace.
+    /// </summary>
+    public static readonly AssetTileBrowserService AssetTileBrowser = new();
+
+    /// <summary>
+    /// Gets the local texture browser service used by the asset workspace.
+    /// </summary>
+    public static readonly AssetTextureBrowserService AssetTextureBrowser = new();
+
+    /// <summary>
+    /// Gets the local gump browser service used by the asset workspace.
+    /// </summary>
+    public static readonly AssetGumpBrowserService AssetGumpBrowser = new();
+
+    /// <summary>
+    /// Gets the local hues and tiledata browser service used by the asset workspace.
+    /// </summary>
+    public static readonly AssetHueTileDataService AssetHueTileDataBrowser = new();
+
+    /// <summary>
+    /// Gets the local animdata browser service used by the asset workspace.
+    /// </summary>
+    public static readonly AssetAnimDataService AssetAnimDataBrowser = new();
+
+    /// <summary>
+    /// Gets the local animation browser service used by the asset workspace.
+    /// </summary>
+    public static readonly AssetAnimationBrowserService AssetAnimationBrowser = new();
+
+    /// <summary>
     /// Gets the metrics collector used for runtime instrumentation.
     /// </summary>
     public static readonly Metrics Metrics = new();
@@ -55,6 +91,7 @@ public class Application
         // Load configuration before any game systems start so initialization
         // code can safely read settings.
         Config.Initialize();
+        AssetWorkspace.Refresh();
 
         // CentrEDGame owns the FNA lifetime; disposing it here guarantees native
         // graphics and input resources are released during shutdown.

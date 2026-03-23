@@ -163,6 +163,7 @@ public class UIManager
         AddWindow(Category.Tools, new TilesWindow());
         AddWindow(Category.Tools, new HuesWindow());
         AddWindow(Category.Tools, new BlueprintsWindow());
+        AddWindow(Category.Tools, new AssetWorkspaceWindow());
         AddWindow(Category.Tools, new LandBrushManagerWindow());
         AddWindow(Category.Tools, new LSOWindow());
         AddWindow(Category.Tools, new ChatWindow());
@@ -750,9 +751,16 @@ public class UIManager
     /// </summary>
     internal unsafe bool DrawImage(Texture2D? tex, Rectangle bounds, Vector2 size, bool stretch = false)
     {
+        var safeSize = new Vector2(MathF.Max(0, size.X), MathF.Max(0, size.Y));
+        if (safeSize.X <= 0 || safeSize.Y <= 0 || bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            ImGui.Dummy(safeSize);
+            return false;
+        }
+
         if (tex == null)
         {
-            ImGui.Dummy(size);
+            ImGui.Dummy(safeSize);
             return false;
         }
         var texPtr = _uiRenderer.BindTexture(tex);
@@ -760,17 +768,22 @@ public class UIManager
 
         // When the source region is smaller than the requested draw size, center it within
         // the reserved layout space rather than anchoring it to the top-left corner.
-        var offsetX = (size.X - bounds.Width) / 2;
-        var offsetY = (size.Y - bounds.Height) / 2;
+        var offsetX = (safeSize.X - bounds.Width) / 2;
+        var offsetY = (safeSize.Y - bounds.Height) / 2;
         if (!stretch)
         {
-            ImGui.Dummy(size);
+            ImGui.Dummy(safeSize);
             ImGui.SetCursorPosX(oldPos.X + Math.Max(0, offsetX));
             ImGui.SetCursorPosY(oldPos.Y + Math.Max(0, offsetY));
         }
         var fWidth = (float)tex.Width;
         var fHeight = (float)tex.Height;
-        var targetSize = stretch ? size : new Vector2(Math.Min(bounds.Width, size.X), Math.Min(bounds.Height, size.Y));
+        var targetSize = stretch ? safeSize : new Vector2(Math.Min(bounds.Width, safeSize.X), Math.Min(bounds.Height, safeSize.Y));
+        if (targetSize.X <= 0 || targetSize.Y <= 0)
+        {
+            return false;
+        }
+
         var uvOffsetX = stretch ? 0 : Math.Min(0, offsetX);
         var uvOffsetY = stretch ? 0 : Math.Min(0, offsetY);
 

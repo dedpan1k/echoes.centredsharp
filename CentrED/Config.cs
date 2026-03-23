@@ -73,6 +73,11 @@ public class ConfigRoot
     public string ServerConfigPath = "cedserver.xml";
 
     /// <summary>
+    /// Gets or sets the optional override directory used by the asset workspace.
+    /// </summary>
+    public string AssetDirectory = "";
+
+    /// <summary>
     /// Gets or sets a value indicating whether texture maps are preferred when available.
     /// </summary>
     // Editor-wide feature toggles and rendering preferences.
