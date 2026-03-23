@@ -12,10 +12,28 @@ namespace CentrED.UI.Windows;
 /// </summary>
 public class ServerWindow : Window
 {
+    private static readonly Vector2 DefaultWindowSize = new(620f, 340f);
+    private static readonly Vector2 PreferredFooterDrawerSize = new(620f, 430f);
+
     /// <summary>
     /// Fixed title for the local server control window.
     /// </summary>
     public override string Name => "Local Server";
+
+    /// <summary>
+    /// Preferred footer drawer size for the local server controls.
+    /// </summary>
+    public Vector2 PreferredDrawerSize => PreferredFooterDrawerSize;
+
+    /// <summary>
+    /// Current footer summary text for the local server drawer trigger.
+    /// </summary>
+    public string StatusText => _statusText;
+
+    /// <summary>
+    /// Current footer summary color for the local server drawer trigger.
+    /// </summary>
+    public Vector4 StatusColor => _statusColor;
 
     // UI-local copies of the server config path and current status presentation.
     private string _configPath = Config.Instance.ServerConfigPath;
@@ -72,6 +90,20 @@ public class ServerWindow : Window
     /// Draws the config picker, start/stop controls, and the rolling server log output.
     /// </summary>
     protected override void InternalDraw()
+    {
+        ImGui.SetWindowSize(DefaultWindowSize, ImGuiCond.FirstUseEver);
+        DrawContents();
+    }
+
+    /// <summary>
+    /// Draws the local server controls inside a footer drawer.
+    /// </summary>
+    public void DrawDrawerContents()
+    {
+        DrawContents();
+    }
+
+    private void DrawContents()
     {
         if (ImGui.InputText("Config File", ref _configPath, 512))
         {
